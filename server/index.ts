@@ -12,7 +12,7 @@ const app = new Hono();
 app.use("/*", cors());
 
 // Return the story list for user selection before generating
-const ALLOWED_COUNTS = [50, 100, 200];
+const ALLOWED_COUNTS = [50, 100, 150, 200];
 // 0 means "all time" (no time filter)
 const ALLOWED_TIME_RANGES = [0, 86400, 172800, 604800, 2592000, 31536000];
 
