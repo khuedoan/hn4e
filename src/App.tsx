@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Download, Loader2, MessageSquare, ThumbsUp } from "lucide-react";
+import { BookOpen, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
 
 interface Story {
   id: string;
@@ -29,14 +28,16 @@ function App() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
-  const [downloadToken, setDownloadToken] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const downloadRef = useRef<HTMLAnchorElement>(null);
 
   const fetchStories = useCallback(async () => {
     setIsFetching(true);
     setFetchError(null);
     setStories([]);
     setSelectedIds(new Set());
+    setProgress(null);
 
     try {
       const response = await fetch("/api/stories");
@@ -45,7 +46,6 @@ function App() {
       }
       const data: Story[] = await response.json();
       setStories(data);
-      setSelectedIds(new Set());
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       setFetchError(message);
@@ -79,7 +79,6 @@ function App() {
 
     setIsGenerating(true);
     setProgress(null);
-    setDownloadToken(null);
 
     const ids = Array.from(selectedIds).join(",");
     const eventSource = new EventSource(`/api/generate?ids=${ids}`);
@@ -89,9 +88,16 @@ function App() {
       setProgress(data);
 
       if (data.phase === "done") {
-        setDownloadToken(data.message);
         setIsGenerating(false);
         eventSource.close();
+
+        // Auto-download the generated EPUB
+        const token = data.message;
+        const link = downloadRef.current;
+        if (link) {
+          link.href = `/api/download/${token}`;
+          link.click();
+        }
       }
 
       if (data.phase === "error") {
@@ -112,15 +118,6 @@ function App() {
     };
   }, [selectedIds]);
 
-  const reset = useCallback(() => {
-    setStories([]);
-    setSelectedIds(new Set());
-    setProgress(null);
-    setDownloadToken(null);
-    setIsGenerating(false);
-    setFetchError(null);
-  }, []);
-
   const progressPercent = progress
     ? progress.total > 0
       ? Math.round((progress.current / progress.total) * 100)
@@ -140,151 +137,130 @@ function App() {
     fetchStories();
   }, [fetchStories]);
 
-  const showSelection = stories.length > 0 && !isGenerating && !downloadToken;
-
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-            <BookOpen className="size-6" />
-            Hacker News for E-readers
-          </CardTitle>
-          <CardDescription>
-            Generate an offline Hacker News archive for your e-reader.
-            Top 100 popular stories from the last 24 hours.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isFetching && (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Fetching stories from Hacker News...
-            </div>
-          )}
+    <div className="mx-auto flex h-svh max-w-2xl flex-col gap-4 px-4 py-6">
+      {/* Hidden link for auto-download */}
+      <a ref={downloadRef} className="hidden" download />
 
-          {fetchError && (
-            <div className="space-y-3">
-              <p className="text-sm text-destructive">{fetchError}</p>
-              <Button className="w-full" variant="outline" onClick={fetchStories}>
-                Try again
-              </Button>
-            </div>
-          )}
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <BookOpen className="size-5" />
+          <h1 className="text-xl font-semibold">Hacker News for E-readers</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Generate an offline Hacker News archive for your e-readers.
+        </p>
+      </div>
 
-          {showSelection && (
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground shrink-0">
+          {selectedIds.size}/{stories.length} selected
+        </p>
+        <div className="flex items-center gap-1">
+          {stories.length > 0 && (
             <>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {selectedIds.size}/{stories.length} selected
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={selectAll}>
-                    Select all
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={deselectAll}>
-                    Deselect all
-                  </Button>
-                </div>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto rounded-md border">
-                {stories.map((story) => (
-                  <label
-                    key={story.id}
-                    className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedIds.has(story.id)}
-                      onCheckedChange={() => toggleStory(story.id)}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-snug">{story.title}</p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <ThumbsUp className="size-3" />
-                          {story.points}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MessageSquare className="size-3" />
-                          {story.commentCount}
-                        </span>
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={reset}>
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1"
-                  size="lg"
-                  onClick={generate}
-                  disabled={selectedIds.size === 0}
-                >
-                  Generate EPUB ({selectedIds.size})
-                </Button>
-              </div>
+              <Button variant="ghost" size="xs" onClick={selectAll}>
+                All
+              </Button>
+              <Button variant="ghost" size="xs" onClick={deselectAll}>
+                None
+              </Button>
             </>
           )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={fetchStories}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </div>
 
-          {isGenerating && progress && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{phaseLabel}</span>
-                {progress.total > 0 && (
-                  <span className="text-muted-foreground">
-                    {progress.current}/{progress.total}
+      {fetchError && (
+        <p className="text-sm text-destructive">{fetchError}</p>
+      )}
+
+      {isFetching && stories.length === 0 && (
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          Fetching stories from Hacker News...
+        </div>
+      )}
+
+      {stories.length > 0 && (
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
+          {stories.map((story) => (
+            <label
+              key={story.id}
+              className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
+            >
+              <Checkbox
+                checked={selectedIds.has(story.id)}
+                onCheckedChange={() => toggleStory(story.id)}
+                disabled={isGenerating}
+                className="mt-0.5"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-snug">{story.title}</p>
+                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <ThumbsUp className="size-3" />
+                    {story.points}
                   </span>
-                )}
+                  <span className="flex items-center gap-1">
+                    <MessageSquare className="size-3" />
+                    {story.commentCount}
+                  </span>
+                </div>
               </div>
-              <Progress value={progressPercent} />
-              <p className="text-muted-foreground text-sm">{progress.message}</p>
-            </div>
-          )}
+            </label>
+          ))}
+        </div>
+      )}
 
-          {isGenerating && !progress && (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+      {stories.length > 0 && (
+        <Button
+          className="w-full shrink-0"
+          onClick={generate}
+          disabled={selectedIds.size === 0 || isGenerating}
+        >
+          {isGenerating ? (
+            <>
               <Loader2 className="size-4 animate-spin" />
-              Connecting...
-            </div>
+              Generating...
+            </>
+          ) : (
+            `Generate EPUB (${selectedIds.size})`
           )}
+        </Button>
+      )}
 
-          {progress?.phase === "error" && (
-            <div className="space-y-3">
-              <p className="text-sm text-destructive">{progress.message}</p>
-              <Button className="w-full" variant="outline" onClick={generate}>
-                Try again
-              </Button>
-            </div>
-          )}
+      {isGenerating && progress && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">{phaseLabel}</span>
+            {progress.total > 0 && (
+              <span className="text-muted-foreground">
+                {progress.current}/{progress.total}
+              </span>
+            )}
+          </div>
+          <Progress value={progressPercent} />
+          <p className="text-muted-foreground text-xs">{progress.message}</p>
+        </div>
+      )}
 
-          {downloadToken && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground text-center">
-                Archive generated successfully.
-              </p>
-              <Button className="w-full" size="lg" asChild>
-                <a href={`/api/download/${downloadToken}`}>
-                  <Download className="size-4" />
-                  Download EPUB
-                </a>
-              </Button>
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={reset}
-              >
-                Generate another
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {progress?.phase === "error" && !isGenerating && (
+        <p className="text-sm text-destructive">{progress.message}</p>
+      )}
+
+      {progress?.phase === "done" && (
+        <p className="text-sm text-muted-foreground">
+          Download started automatically.
+        </p>
+      )}
     </div>
   );
 }
