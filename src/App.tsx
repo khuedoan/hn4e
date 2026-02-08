@@ -191,45 +191,45 @@ function App() {
         <p className="text-sm text-destructive">{fetchError}</p>
       )}
 
-      {isFetching && stories.length === 0 && (
-        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          Fetching stories from Hacker News...
-        </div>
-      )}
-
-      {stories.length > 0 && (
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
-          {stories.map((story) => (
-            <label
-              key={story.id}
-              className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
-            >
-              <Checkbox
-                checked={selectedIds.has(story.id)}
-                onCheckedChange={() => toggleStory(story.id)}
-                disabled={isGenerating}
-                className="mt-0.5"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-snug">{story.title}</p>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <ThumbsUp className="size-3" />
-                    {story.points}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MessageSquare className="size-3" />
-                    {story.commentCount}
-                  </span>
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
+        {isFetching && stories.length === 0 ? (
+          <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Fetching stories from Hacker News...
+          </div>
+        ) : stories.length > 0 ? (
+          <>
+            {stories.map((story) => (
+              <label
+                key={story.id}
+                className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
+              >
+                <Checkbox
+                  checked={selectedIds.has(story.id)}
+                  onCheckedChange={() => toggleStory(story.id)}
+                  disabled={isGenerating}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium leading-snug">{story.title}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <ThumbsUp className="size-3" />
+                      {story.points}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MessageSquare className="size-3" />
+                      {story.commentCount}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </label>
-          ))}
-        </div>
-      )}
+              </label>
+            ))}
+          </>
+        ) : null}
+      </div>
 
-      {stories.length > 0 && !isGenerating && (
+      {!isGenerating && (
         <Button
           className="w-full shrink-0"
           onClick={generate}
