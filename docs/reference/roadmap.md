@@ -20,10 +20,7 @@ Add user-configurable options.
 - [x] feat: configurable time range for popular source
 - [x] feat(ui): simple web form for digest configuration
 - [x] feat: optional max story count
-- [ ] feat: toggle comments
-- [ ] feat: support frontpage and popular selection
-- [ ] feat: include condition for stories
-- [ ] feat: include condition for comments
+- [x] feat: toggle comments
 
 ## v0.3.0
 
