@@ -56,12 +56,11 @@ app.get("/api/generate", async (c) => {
         });
       });
 
-      const extracted = articles.filter((a) => a.extracted).length;
       await sendProgress({
         phase: "generating",
         current: 0,
-        total: 1,
-        message: `Generating EPUB (${extracted}/${articles.length} articles extracted)...`,
+        total: 0,
+        message: "Generating EPUB...",
       });
 
       const epubBuffer = await generateEpub(articles);

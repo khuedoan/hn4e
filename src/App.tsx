@@ -139,7 +139,7 @@ function App() {
   return (
     <div className="mx-auto flex h-svh max-w-2xl flex-col gap-4 px-4 py-6">
       {/* Hidden link for auto-download */}
-      <a ref={downloadRef} className="hidden" download />
+      <a ref={downloadRef} className="sr-only" download />
 
       <div className="space-y-1">
         <div className="flex items-center gap-2">
@@ -231,17 +231,21 @@ function App() {
 
       {isGenerating && (
         <div
-          className="relative h-10 shrink-0 overflow-hidden rounded-md bg-primary/20"
+          className="relative h-10 shrink-0 overflow-hidden rounded-md bg-green-100"
         >
-          <div
-            className="absolute inset-y-0 left-0 bg-primary transition-all duration-300"
-            style={{ width: `${progressPercent}%` }}
-          />
-          <div className="relative flex h-full items-center justify-center gap-2 text-sm font-medium">
+          {progress?.phase === "extracting" ? (
+            <div
+              className="absolute inset-y-0 left-0 bg-green-500 transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          ) : null}
+          <div className="relative flex h-full items-center justify-center gap-2 text-sm font-medium text-green-900">
             <Loader2 className="size-4 animate-spin" />
-            {progress
-              ? `${phaseLabel} (${progress.current}/${progress.total})`
-              : "Connecting..."}
+            {!progress
+              ? "Connecting..."
+              : progress.phase === "extracting"
+                ? `${phaseLabel} (${progress.current}/${progress.total})`
+                : "Generating EPUB..."}
           </div>
         </div>
       )}

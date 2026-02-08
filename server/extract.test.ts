@@ -98,9 +98,8 @@ describe("extractArticle", () => {
 });
 
 describe("extractArticles", () => {
-  test("processes stories in batches and reports progress", async () => {
+  test("reports progress after each article completes", async () => {
     const html = `<html><head><title>T</title></head><body><article><p>Content for readability parser.</p></article></body></html>`;
-    // 3 stories, concurrency 2 = 2 batches
     mockFetch.mockResolvedValue(
       new Response(html, { headers: { "content-type": "text/html" } }),
     );
@@ -114,8 +113,8 @@ describe("extractArticles", () => {
       2,
     );
 
-    // Batch 1: items 0-1 (batchEnd=2), Batch 2: item 2 (batchEnd=3)
-    expect(progressCalls).toEqual([[2, 3], [3, 3]]);
+    // One progress call per article, all with total=3
+    expect(progressCalls).toEqual([[1, 3], [2, 3], [3, 3]]);
   });
 
   test("returns results in order matching input stories", async () => {

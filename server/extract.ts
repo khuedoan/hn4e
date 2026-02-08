@@ -70,23 +70,25 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
 }
 
 // Extract articles in parallel with a concurrency limit.
-// Progress is reported after each batch completes to avoid out-of-order updates.
+// Progress is reported after each individual article completes.
 export async function extractArticles(
   stories: Story[],
   onProgress?: (current: number, total: number) => void,
   concurrency: number = 10,
 ): Promise<ExtractedArticle[]> {
   const results: ExtractedArticle[] = new Array(stories.length);
+  let completed = 0;
 
-  for (let i = 0; i < stories.length; i += concurrency) {
-    const batchEnd = Math.min(i + concurrency, stories.length);
-    const batch = [];
-    for (let j = i; j < batchEnd; j++) {
-      batch.push(extractArticle(stories[j]).then((result) => { results[j] = result; }));
+  const queue = stories.map((story, index) => ({ story, index }));
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift()!;
+      results[item.index] = await extractArticle(item.story);
+      completed++;
+      onProgress?.(completed, stories.length);
     }
-    await Promise.all(batch);
-    onProgress?.(batchEnd, stories.length);
-  }
+  });
 
+  await Promise.all(workers);
   return results;
 }
