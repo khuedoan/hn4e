@@ -1,4 +1,6 @@
-import epub, { type Chapter, type Options } from "epub-gen-memory";
+import { EPub, type Chapter, type Content, type Options } from "epub-gen-memory";
+import { retryFetch } from "epub-gen-memory/dist/lib/util/other.js";
+import { Cache } from "./cache.ts";
 import type { Comment, ExtractedArticle } from "./types.ts";
 
 function escapeHtml(text: string): string {
@@ -11,6 +13,68 @@ function escapeHtml(text: string): string {
 
 // Cap indentation at depth 5 to keep deeply nested threads readable on e-readers
 const MAX_INDENT_DEPTH = 5;
+
+const IMAGE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const imageCache = new Cache<Buffer>(IMAGE_CACHE_TTL_MS, 300);
+
+// Subclass EPub to override image downloading with a cached version.
+// All accessed properties (images, zip, options, log, warn) are declared
+// as protected in the base class, so this is the intended extension point.
+class CachedEPub extends EPub {
+  constructor(options: Options, content: Content) {
+    super(options, content);
+  }
+
+  protected async downloadAllImages(): Promise<void> {
+    if (!this.images.length) {
+      this.log("No images to download");
+      return;
+    }
+
+    const oebps = this.zip.folder("OEBPS")!;
+    const imagesFolder = oebps.folder("images")!;
+    let index = 0;
+
+    while (index < this.images.length) {
+      const batch = this.images.slice(index, index + this.options.batchSize);
+      const downloads = batch.map((image) => {
+        const task = this.fetchImageWithCache(image.url);
+        if (!this.options.ignoreFailedDownloads) return task;
+
+        return task.catch(() => {
+          this.warn(`Warning (image ${image.url}): Download failed`);
+          return Buffer.from("");
+        });
+      });
+
+      const results = await Promise.all(downloads);
+      results.forEach((data, idx) => {
+        const image = batch[idx];
+        imagesFolder.file(`${image.id}.${image.extension}`, data);
+      });
+
+      index += this.options.batchSize;
+    }
+  }
+
+  private async fetchImageWithCache(url: string): Promise<Buffer> {
+    const cached = imageCache.get(url);
+    if (cached) {
+      this.log(`Image cache hit: ${url}`);
+      return cached;
+    }
+
+    const data = await retryFetch(
+      url,
+      this.options.fetchTimeout,
+      this.options.retryTimes,
+      this.log,
+    );
+    imageCache.set(url, data);
+    this.log(`Downloaded image ${url}`);
+    return data;
+  }
+}
 
 export function renderComments(comments: Comment[]): string {
   if (comments.length === 0) return "";
@@ -193,5 +257,6 @@ export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer
 
   const chapters: Chapter[] = articles.flatMap((a, i) => buildChapters(a, i));
 
-  return epub(options, chapters);
+  const book = new CachedEPub(options, chapters);
+  return book.genEpub();
 }
