@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { BookOpen, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
+import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
 
 interface Story {
   id: string;
@@ -146,6 +146,15 @@ function App() {
         <div className="flex items-center gap-2">
           <BookOpen className="size-5" />
           <h1 className="text-xl font-semibold">Hacker News for E-readers</h1>
+          <a
+            href="https://github.com/khuedoan/hn4e"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+          >
+            <Github className="size-3" />
+            GitHub
+          </a>
         </div>
         <p className="text-sm text-muted-foreground">
           Generate an offline Hacker News archive for your e-readers.
@@ -260,6 +269,7 @@ function App() {
           Download started automatically.
         </p>
       )}
+
     </div>
   );
 }
