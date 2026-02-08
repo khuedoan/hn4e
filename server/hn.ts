@@ -19,15 +19,18 @@ interface AlgoliaResponse {
 }
 
 // Fetch top popular stories from HN Algolia API.
-// Uses the search endpoint sorted by popularity (points) over the last 24h.
-export async function fetchPopularStories(count: number = 300): Promise<Story[]> {
+// Uses the search endpoint sorted by popularity (points) over the given time range.
+export async function fetchPopularStories(count: number = 300, timeRangeSeconds: number = 86400): Promise<Story[]> {
   const stories: Story[] = [];
   const perPage = 50;
   const pages = Math.ceil(count / perPage);
 
   for (let page = 0; page < pages; page++) {
     const hitsThisPage = Math.min(perPage, count - stories.length);
-    const url = `${ALGOLIA_API}/search?tags=story&hitsPerPage=${hitsThisPage}&page=${page}&numericFilters=created_at_i>${Math.floor(Date.now() / 1000) - 86400}`;
+    const timeFilter = timeRangeSeconds > 0
+      ? `&numericFilters=created_at_i>${Math.floor(Date.now() / 1000) - timeRangeSeconds}`
+      : "";
+    const url = `${ALGOLIA_API}/search?tags=story&hitsPerPage=${hitsThisPage}&page=${page}${timeFilter}`;
 
     const response = await fetch(url);
     if (!response.ok) {

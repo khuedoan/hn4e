@@ -1,7 +1,23 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
+
+const TIME_RANGE_OPTIONS = [
+  { value: "86400", label: "1 day" },
+  { value: "172800", label: "2 days" },
+  { value: "604800", label: "1 week" },
+  { value: "2592000", label: "1 month" },
+  { value: "31536000", label: "1 year" },
+  { value: "0", label: "all time" },
+] as const;
 
 interface Story {
   id: string;
@@ -26,6 +42,8 @@ function App() {
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const [timeRange, setTimeRange] = useState("86400");
+
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -39,7 +57,7 @@ function App() {
     setProgress(null);
 
     try {
-      const response = await fetch("/api/stories");
+      const response = await fetch(`/api/stories?timeRange=${timeRange}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch stories: ${response.statusText}`);
       }
@@ -51,7 +69,7 @@ function App() {
     } finally {
       setIsFetching(false);
     }
-  }, []);
+  }, [timeRange]);
 
   const toggleStory = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -162,9 +180,21 @@ function App() {
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground shrink-0">
-          {selectedIds.size}/{stories.length} selected
-        </p>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm text-muted-foreground">
+          <span>Top stories for</span>
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex items-center gap-1">
           {stories.length > 0 && (
             <>
