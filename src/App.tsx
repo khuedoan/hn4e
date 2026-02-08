@@ -20,12 +20,16 @@ import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp
 
 const SETTINGS_KEY = "hn4e-settings";
 
+type ExportFormat = "epub" | "xtch";
+
 interface Settings {
   includeComments: boolean;
+  exportFormat: ExportFormat;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   includeComments: true,
+  exportFormat: "epub",
 };
 
 function loadSettings(): Settings {
@@ -342,6 +346,27 @@ function App() {
                   />
                   <Label className="cursor-pointer">Include comments</Label>
                 </label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Export format</Label>
+                  <Select
+                    value={settings.exportFormat}
+                    onValueChange={(value: ExportFormat) => {
+                      const next = { ...settings, exportFormat: value };
+                      setSettings(next);
+                      saveSettings(next);
+                    }}
+                  >
+                    <SelectTrigger size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="epub">EPUB</SelectItem>
+                      <SelectItem value="xtch" disabled className="text-muted-foreground/50">
+                        XTCH (coming soon)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </PopoverContent>
           </Popover>

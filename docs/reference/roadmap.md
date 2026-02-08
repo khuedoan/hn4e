@@ -18,9 +18,9 @@ content and comments, and produces a downloadable EPUB file.
 Add user-configurable options.
 
 - [x] feat: configurable time range for popular source
-- [x] feat(ui): simple web form for digest configuration
-- [x] feat: optional max story count
-- [x] feat: toggle comments
+- [x] feat: configurable max story count
+- [x] feat(ui): better progress display
+- [x] feat: settings comments and format
 
 ## v0.3.0
 
