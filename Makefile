@@ -4,4 +4,4 @@
 default: dev
 
 dev:
-	bun dev
+	bun run dev
