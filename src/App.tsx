@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
+import { Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
 
 const SETTINGS_KEY = "hn4e-settings";
 
@@ -207,7 +207,7 @@ function App() {
 
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <BookOpen className="size-5" />
+          <img src="/favicon.svg" alt="HN4E" className="size-5" />
           <h1 className="text-xl font-semibold">Hacker News for E-readers</h1>
           <a
             href="https://github.com/khuedoan/hn4e"
