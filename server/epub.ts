@@ -96,7 +96,7 @@ export function renderComments(comments: Comment[]): string {
     // Open new nesting levels when going deeper
     while (currentDepth < indent) {
       lines.push(
-        `<div style="margin-left: 1.5em; border-left: 2px solid #ccc; padding-left: 0.5em;">`
+        `<div style="margin-left: 0.5em; border-left: 2px solid #ccc; padding-left: 0.5em;">`
       );
       currentDepth++;
     }

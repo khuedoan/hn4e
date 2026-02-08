@@ -182,7 +182,7 @@ describe("renderComments", () => {
     ];
     const html = renderComments(comments);
     // Each nesting level opens a wrapper div with margin-left and border-left
-    const wrapperCount = (html.match(/margin-left: 1\.5em; border-left: 2px solid #ccc/g) || []).length;
+    const wrapperCount = (html.match(/margin-left: 0\.5em; border-left: 2px solid #ccc/g) || []).length;
     expect(wrapperCount).toBe(2); // one for depth 1, one for depth 2
     // Top-level comment has no nesting wrapper
     expect(html).toContain("alice");
@@ -196,7 +196,7 @@ describe("renderComments", () => {
     ];
     const html = renderComments(comments);
     // Should cap at depth 5, meaning 5 nesting wrapper divs
-    const wrapperCount = (html.match(/margin-left: 1\.5em; border-left: 2px solid #ccc/g) || []).length;
+    const wrapperCount = (html.match(/margin-left: 0\.5em; border-left: 2px solid #ccc/g) || []).length;
     expect(wrapperCount).toBe(5);
   });
 
