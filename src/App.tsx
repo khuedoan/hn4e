@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
 import { BookOpen, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
 
 interface Story {
@@ -220,43 +219,38 @@ function App() {
         </div>
       )}
 
-      {stories.length > 0 && (
+      {stories.length > 0 && !isGenerating && (
         <Button
           className="w-full shrink-0"
           onClick={generate}
-          disabled={selectedIds.size === 0 || isGenerating}
+          disabled={selectedIds.size === 0}
         >
-          {isGenerating ? (
-            <>
-              <Loader2 className="size-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            `Generate EPUB (${selectedIds.size})`
-          )}
+          Generate EPUB ({selectedIds.size})
         </Button>
       )}
 
-      {isGenerating && progress && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">{phaseLabel}</span>
-            {progress.total > 0 && (
-              <span className="text-muted-foreground">
-                {progress.current}/{progress.total}
-              </span>
-            )}
+      {isGenerating && (
+        <div
+          className="relative h-10 shrink-0 overflow-hidden rounded-md bg-primary/20"
+        >
+          <div
+            className="absolute inset-y-0 left-0 bg-primary transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+          <div className="relative flex h-full items-center justify-center gap-2 text-sm font-medium">
+            <Loader2 className="size-4 animate-spin" />
+            {progress
+              ? `${phaseLabel} (${progress.current}/${progress.total})`
+              : "Connecting..."}
           </div>
-          <Progress value={progressPercent} />
-          <p className="text-muted-foreground text-xs">{progress.message}</p>
         </div>
       )}
 
-      {progress?.phase === "error" && !isGenerating && (
+      {!isGenerating && progress?.phase === "error" && (
         <p className="text-sm text-destructive">{progress.message}</p>
       )}
 
-      {progress?.phase === "done" && (
+      {!isGenerating && progress?.phase === "done" && (
         <p className="text-sm text-muted-foreground">
           Download started automatically.
         </p>
