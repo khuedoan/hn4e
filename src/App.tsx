@@ -1,6 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -9,7 +15,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
+import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
+
+const SETTINGS_KEY = "hn4e-settings";
+
+interface Settings {
+  includeComments: boolean;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  includeComments: true,
+};
+
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    // Ignore corrupted data
+  }
+  return DEFAULT_SETTINGS;
+}
+
+function saveSettings(settings: Settings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
 
 const COUNT_OPTIONS = [
   { value: "50", label: "50" },
@@ -52,6 +82,8 @@ function App() {
 
   const [count, setCount] = useState("100");
   const [timeRange, setTimeRange] = useState("86400");
+
+  const [settings, setSettings] = useState<Settings>(loadSettings);
 
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -107,7 +139,9 @@ function App() {
     setProgress(null);
 
     const ids = Array.from(selectedIds).join(",");
-    const eventSource = new EventSource(`/api/generate?ids=${ids}`);
+    const params = new URLSearchParams({ ids });
+    if (!settings.includeComments) params.set("comments", "false");
+    const eventSource = new EventSource(`/api/generate?${params}`);
 
     eventSource.addEventListener("progress", (event) => {
       const data: GenerationProgress = JSON.parse(event.data);
@@ -142,7 +176,7 @@ function App() {
       setIsGenerating(false);
       eventSource.close();
     };
-  }, [selectedIds]);
+  }, [selectedIds, settings.includeComments]);
 
   const progressPercent = progress
     ? progress.total > 0
@@ -289,13 +323,38 @@ function App() {
       </div>
 
       {!isGenerating && (
-        <Button
-          className="w-full shrink-0"
-          onClick={generate}
-          disabled={selectedIds.size === 0}
-        >
-          Generate EPUB ({selectedIds.size})
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon">
+                <Settings className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-56">
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Settings</p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={settings.includeComments}
+                    onCheckedChange={(checked) => {
+                      const next = { ...settings, includeComments: !!checked };
+                      setSettings(next);
+                      saveSettings(next);
+                    }}
+                  />
+                  <Label className="cursor-pointer">Include comments</Label>
+                </label>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button
+            className="flex-1"
+            onClick={generate}
+            disabled={selectedIds.size === 0}
+          >
+            Generate EPUB ({selectedIds.size})
+          </Button>
+        </div>
       )}
 
       {isGenerating && (

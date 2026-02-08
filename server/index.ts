@@ -38,6 +38,8 @@ app.get("/api/generate", async (c) => {
     return c.json({ error: "No story IDs provided" }, 400);
   }
 
+  const includeComments = c.req.query("comments") !== "false";
+
   // Fetch the full story data and comment trees for the selected IDs
   const storiesWithComments = await fetchStoriesByIds(ids);
   const stories = storiesWithComments.map((s) => s.story);
@@ -70,7 +72,9 @@ app.get("/api/generate", async (c) => {
 
       // Attach comments to each extracted article
       for (const article of articles) {
-        article.comments = commentsByStoryId.get(article.story.id) ?? [];
+        article.comments = includeComments
+          ? commentsByStoryId.get(article.story.id) ?? []
+          : [];
       }
 
       await sendProgress({
