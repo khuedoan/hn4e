@@ -26,8 +26,9 @@ Add user-configurable options.
 
 UX and performance improvements.
 
-- [ ] perf: caching for article content
-- [ ] perf: caching for comments
+- [x] perf: caching for feed
+- [x] perf: caching for article content
+- [x] perf: caching for comments
 
 ## v0.4.0
 

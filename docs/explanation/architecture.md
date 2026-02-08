@@ -28,11 +28,20 @@ The system has two components:
 
 **Bun runtime** because the readability extraction toolchain (`@mozilla/readability` + `jsdom`) is a mature Node-compatible library. Keeping the backend in the same language as the extraction pipeline simplifies the codebase.
 
+## Caching
+
+The server uses in-memory caches with a 1-hour TTL and a max entry cap to avoid redundant API calls and article extractions. Each cache evicts the oldest entry when full.
+
+- **Feed cache** (max 20 entries): caches the story list by count and time range, so repeated page loads with the same filters skip the Algolia search API.
+- **Story+comments cache** (max 300 entries): caches individual story metadata and comment trees by story ID. When generating an EPUB, only uncached stories are fetched from the Algolia items API.
+- **Article content cache** (max 300 entries): caches extracted article HTML by URL. This gives the biggest performance gain since extraction involves fetching external URLs and running Readability/jsdom.
+
+Caches are not persistent. They are lost on server restart, which is acceptable for a personal-use tool.
+
 ## Current limitations
 
 - Generation is synchronous and in-process. Only one generation can run per request, and the server blocks during the pipeline.
 - Generated files are held in memory. The server's memory usage scales with the number of concurrent generations.
-- No caching. Every generation fetches stories and articles from scratch.
 - No persistent storage. If the server restarts, pending downloads are lost.
 
 These limitations are acceptable for personal use and will be addressed in future versions.
