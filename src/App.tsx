@@ -10,6 +10,12 @@ import {
 } from "@/components/ui/select";
 import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
 
+const COUNT_OPTIONS = [
+  { value: "50", label: "50" },
+  { value: "100", label: "100" },
+  { value: "200", label: "200" },
+] as const;
+
 const TIME_RANGE_OPTIONS = [
   { value: "86400", label: "1 day" },
   { value: "172800", label: "2 days" },
@@ -42,6 +48,7 @@ function App() {
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const [count, setCount] = useState("100");
   const [timeRange, setTimeRange] = useState("86400");
 
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
@@ -57,7 +64,7 @@ function App() {
     setProgress(null);
 
     try {
-      const response = await fetch(`/api/stories?timeRange=${timeRange}`);
+      const response = await fetch(`/api/stories?count=${count}&timeRange=${timeRange}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch stories: ${response.statusText}`);
       }
@@ -69,7 +76,7 @@ function App() {
     } finally {
       setIsFetching(false);
     }
-  }, [timeRange]);
+  }, [count, timeRange]);
 
   const toggleStory = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -179,23 +186,34 @@ function App() {
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm text-muted-foreground">
-          <span>Top stories for</span>
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm text-muted-foreground">
+        <span>Top</span>
+        <Select value={count} onValueChange={setCount}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {COUNT_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span>for</span>
+        <Select value={timeRange} onValueChange={setTimeRange}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1 ml-auto">
           {stories.length > 0 && (
             <>
               <Button variant="ghost" size="xs" onClick={selectAll}>

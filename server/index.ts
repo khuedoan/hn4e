@@ -12,11 +12,13 @@ const app = new Hono();
 app.use("/*", cors());
 
 // Return the story list for user selection before generating
+const ALLOWED_COUNTS = [50, 100, 200];
 // 0 means "all time" (no time filter)
 const ALLOWED_TIME_RANGES = [0, 86400, 172800, 604800, 2592000, 31536000];
 
 app.get("/api/stories", async (c) => {
-  const count = Math.min(Math.max(parseInt(c.req.query("count") ?? "100"), 1), 300);
+  const rawCount = parseInt(c.req.query("count") ?? "100");
+  const count = ALLOWED_COUNTS.includes(rawCount) ? rawCount : 100;
 
   const rawTimeRange = parseInt(c.req.query("timeRange") ?? "86400");
   const timeRange = ALLOWED_TIME_RANGES.includes(rawTimeRange) ? rawTimeRange : 86400;
