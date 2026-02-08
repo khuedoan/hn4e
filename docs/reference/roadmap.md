@@ -17,12 +17,12 @@ content and comments, and produces a downloadable EPUB file.
 
 Add user-configurable options.
 
-- [ ] feat(ui): simple web form for digest configuration
-- [ ] feat: support frontpage and popular selection
-- [ ] feat: configurable time range for popular source
-- [ ] feat: include condition for stories
-- [ ] feat: optional max story count (1-200)
+- [x] feat: configurable time range for popular source
+- [x] feat(ui): simple web form for digest configuration
+- [x] feat: optional max story count
 - [ ] feat: toggle comments
+- [ ] feat: support frontpage and popular selection
+- [ ] feat: include condition for stories
 - [ ] feat: include condition for comments
 
 ## v0.3.0
