@@ -1,6 +1,6 @@
 # Archive structure
 
-This document explains how HNE organizes content within a generated EPUB file and the reasoning behind the structure.
+This document explains how HN4E organizes content within a generated EPUB file and the reasoning behind the structure.
 
 ## Design goals
 

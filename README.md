@@ -1,6 +1,6 @@
-# HNE - Hacker News for E-readers
+# HN4E - Hacker News for E-readers
 
-HNE generates offline archives of popular Hacker News articles,
+HN4E generates offline archives of popular Hacker News articles,
 packaged into EPUB files optimized for E Ink readers.
 
 ## Usage

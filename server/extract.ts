@@ -27,7 +27,7 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
     const response = await fetch(story.url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "HNE/0.1.0 (Hacker News E-reader archive generator)",
+        "User-Agent": "HN4E/0.1.0 (Hacker News for E-readers archive generator)",
         Accept: "text/html,application/xhtml+xml",
       },
     });
