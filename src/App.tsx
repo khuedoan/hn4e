@@ -14,7 +14,7 @@ interface Story {
 }
 
 interface GenerationProgress {
-  phase: "extracting" | "generating" | "done" | "error";
+  phase: "extracting" | "comments" | "generating" | "done" | "error";
   current: number;
   total: number;
   message: string;
@@ -126,6 +126,7 @@ function App() {
   const phaseLabel = progress
     ? {
         extracting: "Extracting articles",
+        comments: "Fetching comments",
         generating: "Generating EPUB",
         done: "Done",
         error: "Error",

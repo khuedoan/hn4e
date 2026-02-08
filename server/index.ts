@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { fetchPopularStories } from "./hn.ts";
+import { flattenComments } from "./comments.ts";
 import { extractArticles } from "./extract.ts";
 import { generateEpub } from "./epub.ts";
-import type { Story, GenerationProgress } from "./types.ts";
+import type { Comment, Story, GenerationProgress } from "./types.ts";
 
 const app = new Hono();
 
@@ -28,8 +29,10 @@ app.get("/api/generate", async (c) => {
     return c.json({ error: "No story IDs provided" }, 400);
   }
 
-  // Fetch the full story data for the selected IDs
-  const stories = await fetchStoriesByIds(ids);
+  // Fetch the full story data and comment trees for the selected IDs
+  const storiesWithComments = await fetchStoriesByIds(ids);
+  const stories = storiesWithComments.map((s) => s.story);
+  const commentsByStoryId = new Map(storiesWithComments.map((s) => [s.story.id, s.comments]));
 
   return streamSSE(c, async (stream) => {
     function sendProgress(progress: GenerationProgress) {
@@ -55,6 +58,11 @@ app.get("/api/generate", async (c) => {
           message: `Extracted ${current}/${total} articles...`,
         });
       });
+
+      // Attach comments to each extracted article
+      for (const article of articles) {
+        article.comments = commentsByStoryId.get(article.story.id) ?? [];
+      }
 
       await sendProgress({
         phase: "generating",
@@ -89,18 +97,23 @@ app.get("/api/generate", async (c) => {
   });
 });
 
-// Fetch stories by their IDs from the Algolia API
-async function fetchStoriesByIds(ids: string[]): Promise<Story[]> {
-  const ALGOLIA_API = "https://hn.algolia.com/api/v1";
-  const results: Story[] = [];
+interface StoryWithComments {
+  story: Story;
+  comments: Comment[];
+}
 
-  // Algolia supports fetching individual items by ID
-  const fetches = ids.map(async (id) => {
+// Fetch stories and their comment trees by ID from the Algolia items API.
+// The items endpoint returns the full nested comment tree, so we extract
+// both story metadata and comments from a single request per story.
+async function fetchStoriesByIds(ids: string[]): Promise<StoryWithComments[]> {
+  const ALGOLIA_API = "https://hn.algolia.com/api/v1";
+
+  const fetches = ids.map(async (id): Promise<StoryWithComments | null> => {
     const response = await fetch(`${ALGOLIA_API}/items/${id}`);
     if (!response.ok) return null;
 
     const item = await response.json();
-    return {
+    const story: Story = {
       id: String(item.id),
       title: item.title ?? "",
       url: item.url ?? `https://news.ycombinator.com/item?id=${item.id}`,
@@ -108,15 +121,13 @@ async function fetchStoriesByIds(ids: string[]): Promise<Story[]> {
       points: item.points ?? 0,
       commentCount: item.children?.length ?? 0,
       createdAt: item.created_at ?? "",
-    } satisfies Story;
+    };
+    const comments = flattenComments(item.children ?? []);
+    return { story, comments };
   });
 
   const settled = await Promise.all(fetches);
-  for (const story of settled) {
-    if (story) results.push(story);
-  }
-
-  return results;
+  return settled.filter((r): r is StoryWithComments => r !== null);
 }
 
 app.get("/api/download/:token", (c) => {
