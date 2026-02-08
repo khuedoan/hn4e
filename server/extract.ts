@@ -16,6 +16,7 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
       textContent: null,
       excerpt: null,
       extracted: false,
+      comments: [],
     };
   }
 
@@ -33,17 +34,17 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
     clearTimeout(timeout);
 
     if (!response.ok) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false };
+      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
     }
 
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false };
+      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
     }
 
     const contentLength = response.headers.get("content-length");
     if (contentLength && parseInt(contentLength) > MAX_RESPONSE_BYTES) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false };
+      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
     }
 
     const html = await response.text();
@@ -54,7 +55,7 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
     const article = reader.parse();
 
     if (!article || !article.content) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false };
+      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
     }
 
     return {
@@ -63,9 +64,10 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
       textContent: article.textContent ?? null,
       excerpt: article.excerpt ?? null,
       extracted: true,
+      comments: [],
     };
   } catch {
-    return { story, content: null, textContent: null, excerpt: null, extracted: false };
+    return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
   }
 }
 

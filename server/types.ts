@@ -8,6 +8,14 @@ export interface Story {
   createdAt: string;
 }
 
+export interface Comment {
+  id: number;
+  author: string;
+  text: string;
+  createdAt: string;
+  depth: number;
+}
+
 export interface ExtractedArticle {
   story: Story;
   content: string | null;
@@ -15,10 +23,11 @@ export interface ExtractedArticle {
   excerpt: string | null;
   // Whether extraction succeeded or fell back to title + URL
   extracted: boolean;
+  comments: Comment[];
 }
 
 export interface GenerationProgress {
-  phase: "extracting" | "generating" | "done" | "error";
+  phase: "extracting" | "comments" | "generating" | "done" | "error";
   current: number;
   total: number;
   message: string;
