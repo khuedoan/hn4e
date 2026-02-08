@@ -99,8 +99,6 @@ function App() {
   const fetchStories = useCallback(async () => {
     setIsFetching(true);
     setFetchError(null);
-    setStories([]);
-    setSelectedIds(new Set());
     setProgress(null);
 
     try {
@@ -110,6 +108,7 @@ function App() {
       }
       const data: Story[] = await response.json();
       setStories(data);
+      setSelectedIds(new Set());
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       setFetchError(message);
@@ -381,7 +380,7 @@ function App() {
                 Generating...
               </>
             ) : (
-              `Generate EPUB (${selectedIds.size})`
+              `Generate EPUB (${selectedIds.size} items)`
             )}
           </Button>
         </div>
