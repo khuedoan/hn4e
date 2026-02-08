@@ -6,10 +6,9 @@ packaged into EPUB files optimized for E Ink readers.
 ## Usage
 
 1. Open the web app.
-2. Click "Generate EPUB".
-3. Wait for the progress bar to complete.
-4. Download the `.epub` file.
-5. Copy the file to your device.
+2. Select the stories you want.
+3. Generate and download the EPUB.
+4. Copy the file to your device.
 
 ## Development
 

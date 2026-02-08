@@ -13,15 +13,6 @@ content and comments, and produces a downloadable EPUB file.
 - [x] feat: fetch full comment trees as subchapter
 - [x] feat: render nested comments with indentation after article
 
-Chapter structure:
-
-```markdown
-- First story (X points)
-    - Y Comments
-- Second story (X points)
-    - Y Comments
-```
-
 ## v0.2.0
 
 Add user-configurable options.
@@ -36,19 +27,18 @@ Add user-configurable options.
 
 ## v0.3.0
 
+UX and performance improvements.
+
+- [ ] perf: caching for article content
+- [ ] perf: caching for comments
+
+## v0.4.0
+
 Support XTCH format for Xteink devices.
 
 - [ ] feat(ui): output format selection
 - [ ] feat(xtch): initial rendering pipeline
 - [ ] feat(ui): support XTCH output
-
-## v0.4.0
-
-UX and performance improvements.
-
-- [ ] perf: caching for article content
-- [ ] perf: caching for comments
-- [ ] feat: add option to generate index chapter.
 
 ## vX.X.X
 
