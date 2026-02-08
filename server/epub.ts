@@ -1,5 +1,5 @@
 import epub, { type Chapter, type Options } from "epub-gen-memory";
-import type { ExtractedArticle } from "./types.ts";
+import type { Comment, ExtractedArticle } from "./types.ts";
 
 function escapeHtml(text: string): string {
   return text
@@ -9,8 +9,27 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildStoryChapter(article: ExtractedArticle, index: number): Chapter {
-  const { story, content, extracted } = article;
+// Cap indentation at depth 5 to keep deeply nested threads readable on e-readers
+const MAX_INDENT_DEPTH = 5;
+
+export function renderComments(comments: Comment[]): string {
+  if (comments.length === 0) return "";
+
+  const rendered = comments.map((c) => {
+    const indent = Math.min(c.depth, MAX_INDENT_DEPTH);
+    const marginLeft = indent * 1.5;
+    const borderLeft = indent > 0 ? "border-left: 2px solid #ccc; padding-left: 0.5em;" : "";
+    return `<div style="margin-left: ${marginLeft}em; margin-bottom: 0.8em; ${borderLeft}">
+  <p><small><strong>${escapeHtml(c.author)}</strong></small></p>
+  ${c.text}
+</div>`;
+  });
+
+  return rendered.join("\n");
+}
+
+function buildChapters(article: ExtractedArticle, index: number): Chapter[] {
+  const { story, content, extracted, comments } = article;
   const hnUrl = `https://news.ycombinator.com/item?id=${story.id}`;
   const meta = `<p><small>
     <a href="${escapeHtml(story.url)}">${escapeHtml(story.url)}</a><br/>
@@ -24,12 +43,99 @@ function buildStoryChapter(article: ExtractedArticle, index: number): Chapter {
     body = `${meta}<p><em>Article content could not be extracted. Visit the link above to read the full article.</em></p>`;
   }
 
-  return {
-    title: `${story.title} (${story.points} points)`,
-    content: body,
-    filename: `chapter_${index + 1}.xhtml`,
-  };
+  const chapters: Chapter[] = [
+    {
+      title: `${story.title} (${story.points} points)`,
+      content: body,
+      filename: `story_${index + 1}.xhtml`,
+    },
+  ];
+
+  if (comments.length > 0) {
+    chapters.push({
+      title: `${comments.length} Comments`,
+      content: renderComments(comments),
+      filename: `comments_${index + 1}.xhtml`,
+    });
+  }
+
+  return chapters;
 }
+
+// Custom toc.ncx template that nests comment chapters under their story chapter.
+// Comment chapters are identified by filename starting with "comments_".
+const TOC_NCX = `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+    <head>
+        <meta name="dtb:uid" content="<%= id %>" />
+        <meta name="dtb:generator" content="epub-gen"/>
+        <meta name="dtb:depth" content="2"/>
+        <meta name="dtb:totalPageCount" content="0"/>
+        <meta name="dtb:maxPageNumber" content="0"/>
+    </head>
+    <docTitle>
+        <text><%= title %></text>
+    </docTitle>
+    <docAuthor>
+        <text><%= author %></text>
+    </docAuthor>
+    <navMap>
+        <% var _index = 0; %>
+        <% for (var i = 0; i < content.length; i++) { %>
+            <% var ch = content[i]; %>
+            <% if (ch.excludeFromToc) continue; %>
+            <% if (ch.filename.indexOf('comments_') === 0) continue; %>
+            <navPoint id="content_<%= i %>_<%= ch.id %>" playOrder="<%= _index++ %>" class="chapter">
+                <navLabel>
+                    <text><%= ch.title %></text>
+                </navLabel>
+                <content src="<%= ch.filename %>"/>
+                <% if (i + 1 < content.length && content[i + 1].filename.indexOf('comments_') === 0) { %>
+                    <% var cc = content[i + 1]; %>
+                    <navPoint id="content_<%= i + 1 %>_<%= cc.id %>" playOrder="<%= _index++ %>" class="chapter">
+                        <navLabel>
+                            <text><%= cc.title %></text>
+                        </navLabel>
+                        <content src="<%= cc.filename %>"/>
+                    </navPoint>
+                <% } %>
+            </navPoint>
+        <% } %>
+    </navMap>
+</ncx>`;
+
+// Custom toc.xhtml template that nests comment chapters under their story chapter.
+const TOC_XHTML = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="<%- lang %>" lang="<%- lang %>">
+<head>
+    <title><%= title %></title>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+    <h1 class="h1"><%= tocTitle %></h1>
+    <nav id="toc" epub:type="toc">
+        <ol style="list-style: none">
+            <% for (var i = 0; i < content.length; i++) { %>
+                <% var ch = content[i]; %>
+                <% if (ch.excludeFromToc) continue; %>
+                <% if (ch.filename.indexOf('comments_') === 0) continue; %>
+                <li class="table-of-content">
+                    <a href="<%= ch.filename %>"><%= ch.title %></a>
+                    <% if (i + 1 < content.length && content[i + 1].filename.indexOf('comments_') === 0) { %>
+                        <ol style="list-style: none">
+                            <li class="table-of-content">
+                                <a href="<%= content[i + 1].filename %>"><%= content[i + 1].title %></a>
+                            </li>
+                        </ol>
+                    <% } %>
+                </li>
+            <% } %>
+        </ol>
+    </nav>
+</body>
+</html>`;
 
 export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer> {
   const options: Options = {
@@ -42,6 +148,8 @@ export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer
     lang: "en",
     prependChapterTitles: true,
     ignoreFailedDownloads: true,
+    tocNCX: TOC_NCX,
+    tocXHTML: TOC_XHTML,
     css: `
       body { font-family: serif; line-height: 1.6; }
       p { margin: 1em 0; }
@@ -53,10 +161,11 @@ export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer
       pre { white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 0.5em; }
       code { font-size: 0.9em; }
       blockquote { margin-left: 1em; padding-left: 1em; border-left: 3px solid #ccc; }
+      h3 { margin-top: 1.5em; }
     `,
   };
 
-  const chapters: Chapter[] = articles.map((a, i) => buildStoryChapter(a, i));
+  const chapters: Chapter[] = articles.flatMap((a, i) => buildChapters(a, i));
 
   return epub(options, chapters);
 }

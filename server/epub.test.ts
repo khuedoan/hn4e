@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import JSZip from "jszip";
-import { generateEpub } from "./epub.ts";
-import type { ExtractedArticle } from "./types.ts";
+import { generateEpub, renderComments } from "./epub.ts";
+import type { Comment, ExtractedArticle } from "./types.ts";
 
 function makeArticle(overrides: Partial<ExtractedArticle> = {}): ExtractedArticle {
   return {
@@ -18,6 +18,7 @@ function makeArticle(overrides: Partial<ExtractedArticle> = {}): ExtractedArticl
     textContent: "Article content.",
     excerpt: "Article content.",
     extracted: true,
+    comments: [],
     ...overrides,
   };
 }
@@ -98,5 +99,108 @@ describe("generateEpub", () => {
 
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.byteLength).toBeGreaterThan(0);
+  });
+
+  test("creates separate comments chapter as subchapter", async () => {
+    const comments: Comment[] = [
+      { id: 101, author: "alice", text: "<p>Great article!</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+      { id: 102, author: "bob", text: "<p>I agree.</p>", createdAt: "2024-01-01T00:01:00Z", depth: 1 },
+    ];
+    const articles = [makeArticle({ comments })];
+    const buffer = await generateEpub(articles);
+    const files = await extractEpubContent(buffer);
+
+    // Story and comments should be separate chapter files
+    const storyChapter = Object.entries(files).find(([name]) => name.includes("story_"));
+    const commentsChapter = Object.entries(files).find(([name]) => name.includes("comments_"));
+    expect(storyChapter).toBeDefined();
+    expect(commentsChapter).toBeDefined();
+
+    // Story chapter should have article content but not comment text
+    expect(storyChapter![1]).toContain("Article content.");
+    expect(storyChapter![1]).not.toContain("Great article!");
+
+    // Comments chapter should have the comment content
+    expect(commentsChapter![1]).toContain("alice");
+    expect(commentsChapter![1]).toContain("Great article!");
+    expect(commentsChapter![1]).toContain("bob");
+    expect(commentsChapter![1]).toContain("I agree.");
+  });
+
+  test("comments chapter appears nested in TOC", async () => {
+    const comments: Comment[] = [
+      { id: 101, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+    ];
+    const articles = [makeArticle({ comments })];
+    const buffer = await generateEpub(articles);
+
+    const zip = await JSZip.loadAsync(buffer);
+    const tocNcx = await zip.file("OEBPS/toc.ncx")!.async("string");
+    const tocXhtml = await zip.file("OEBPS/toc.xhtml")!.async("string");
+
+    // NCX should have nested navPoint for comments under the story navPoint
+    expect(tocNcx).toContain("1 Comments");
+    // The comments navPoint should be nested inside the story navPoint
+    const storyNavPoint = tocNcx.indexOf("Test Story (100 points)");
+    const commentsNavPoint = tocNcx.indexOf("1 Comments");
+    expect(storyNavPoint).toBeGreaterThan(-1);
+    expect(commentsNavPoint).toBeGreaterThan(storyNavPoint);
+
+    // XHTML TOC should have nested list for comments
+    expect(tocXhtml).toContain("1 Comments");
+  });
+
+  test("omits comments chapter when no comments", async () => {
+    const articles = [makeArticle({ comments: [] })];
+    const buffer = await generateEpub(articles);
+    const files = await extractEpubContent(buffer);
+
+    const commentsChapter = Object.entries(files).find(([name]) => name.includes("comments_"));
+    expect(commentsChapter).toBeUndefined();
+  });
+});
+
+describe("renderComments", () => {
+  test("returns empty string for no comments", () => {
+    expect(renderComments([])).toBe("");
+  });
+
+  test("renders comments with author and text", () => {
+    const comments: Comment[] = [
+      { id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+    ];
+    const html = renderComments(comments);
+    expect(html).toContain("alice");
+    expect(html).toContain("<p>Hello</p>");
+  });
+
+  test("indents nested comments", () => {
+    const comments: Comment[] = [
+      { id: 1, author: "alice", text: "<p>Top</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+      { id: 2, author: "bob", text: "<p>Reply</p>", createdAt: "2024-01-01T00:01:00Z", depth: 1 },
+      { id: 3, author: "carol", text: "<p>Deep</p>", createdAt: "2024-01-01T00:02:00Z", depth: 2 },
+    ];
+    const html = renderComments(comments);
+    expect(html).toContain("margin-left: 0em");
+    expect(html).toContain("margin-left: 1.5em");
+    expect(html).toContain("margin-left: 3em");
+  });
+
+  test("caps indentation at max depth", () => {
+    const comments: Comment[] = [
+      { id: 1, author: "deep", text: "<p>Very deep</p>", createdAt: "2024-01-01T00:00:00Z", depth: 10 },
+    ];
+    const html = renderComments(comments);
+    // Should cap at depth 5 = 7.5em
+    expect(html).toContain("margin-left: 7.5em");
+  });
+
+  test("escapes author names in HTML", () => {
+    const comments: Comment[] = [
+      { id: 1, author: '<script>alert("xss")</script>', text: "<p>test</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+    ];
+    const html = renderComments(comments);
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
   });
 });
