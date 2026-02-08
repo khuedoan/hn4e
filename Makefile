@@ -4,6 +4,7 @@
 default: dev
 
 dev:
+	bun install
 	bun run dev
 
 test:
