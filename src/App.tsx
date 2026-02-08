@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, ThumbsUp } from "lucide-react";
 
 const COUNT_OPTIONS = [
@@ -229,53 +230,61 @@ function App() {
         <p className="text-sm text-destructive">{fetchError}</p>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border">
+        <label
+          className="flex items-center gap-3 border-b px-3 py-2 hover:bg-muted cursor-pointer sticky top-0 bg-background z-10"
+        >
+          <Checkbox
+            checked={selectedIds.size === stories.length && stories.length > 0 ? true : selectedIds.size > 0 ? "indeterminate" : false}
+            onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
+            disabled={isGenerating || isFetching}
+          />
+          <span className="text-sm text-muted-foreground">
+            Select all
+          </span>
+        </label>
         {isFetching && stories.length === 0 ? (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Fetching stories from Hacker News...
-          </div>
-        ) : stories.length > 0 ? (
-          <>
-            <label
-              className="flex items-center gap-3 border-b px-3 py-2 hover:bg-muted/50 cursor-pointer sticky top-0 bg-background z-10"
-            >
-              <Checkbox
-                checked={selectedIds.size === stories.length ? true : selectedIds.size > 0 ? "indeterminate" : false}
-                onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
-                disabled={isGenerating}
-              />
-              <span className="text-sm text-muted-foreground">
-                Select all
-              </span>
-            </label>
-            {stories.map((story) => (
-              <label
-                key={story.id}
-                className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
-              >
-                <Checkbox
-                  checked={selectedIds.has(story.id)}
-                  onCheckedChange={() => toggleStory(story.id)}
-                  disabled={isGenerating}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-snug">{story.title}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <ThumbsUp className="size-3" />
-                      {story.points}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="size-3" />
-                      {story.commentCount}
-                    </span>
+          <div className="flex-1">
+            {Array.from({ length: 20 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0">
+                <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-3 w-12" />
                   </div>
                 </div>
-              </label>
+              </div>
             ))}
-          </>
+          </div>
+        ) : stories.length > 0 ? (
+          stories.map((story) => (
+            <label
+              key={story.id}
+              className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
+            >
+              <Checkbox
+                checked={selectedIds.has(story.id)}
+                onCheckedChange={() => toggleStory(story.id)}
+                disabled={isGenerating}
+                className="mt-0.5"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-snug">{story.title}</p>
+                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <ThumbsUp className="size-3" />
+                    {story.points}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <MessageSquare className="size-3" />
+                    {story.commentCount}
+                  </span>
+                </div>
+              </div>
+            </label>
+          ))
         ) : null}
       </div>
 
