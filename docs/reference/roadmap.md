@@ -8,14 +8,7 @@ content, and produces a downloadable EPUB file.
 - [x] feat(ui): basic layout
 - [x] feat: fetch popular stories from the HN Algolia API
 - [x] feat: extract article content
-- [x] feat: generate an EPUB 3 with chapter-per-story structure
-
-Chapter structure:
-
-```markdown
-- First story (X points)
-- Second story (X points)
-```
+- [x] feat: generate EPUB with one chapter per story
 
 ## v0.2.0
 
