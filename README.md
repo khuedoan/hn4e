@@ -27,3 +27,9 @@ Start development server:
 ```sh
 make dev
 ```
+
+Run tests:
+
+```sh
+make test
+```
