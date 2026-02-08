@@ -19,3 +19,11 @@ Read Hacker News articles and comments on any E Ink devices.
    - XTCH for Xteink devices (fast page turns and consistent layout but larger file size)
 - Download
 - Copy the `.epub` (or `.xtch`) file to your devices using your preferred method (wirelessly, SD card, etc.)
+
+## Development
+
+Start development server:
+
+```sh
+make dev
+```
