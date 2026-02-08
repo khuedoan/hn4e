@@ -3,23 +3,17 @@
 ## v0.1.0
 
 Basic end-to-end pipeline that fetches popular HN stories, extracts article
-content, and produces a downloadable EPUB file.
+content and comments, and produces a downloadable EPUB file.
 
 - [x] feat(ui): basic layout
 - [x] feat: fetch popular stories from the HN Algolia API
 - [x] feat: extract article content
 - [x] feat: generate EPUB with one chapter per story
 - [x] feat: filter articles to export
+- [x] feat: fetch full comment trees as subchapter
+- [x] feat: render nested comments with indentation after article
 
-## v0.2.0
-
-Add Hacker News comment threads to each story chapter.
-
-- [ ] refactor: move content to sub chapter to prepare for comments
-- [ ] feat: fetch full comment trees as subchapter
-- [ ] feat: render nested comments with indentation after article
-
-New chapter structure:
+Chapter structure:
 
 ```markdown
 - First story (X points)
@@ -28,7 +22,7 @@ New chapter structure:
     - Y Comments
 ```
 
-## v0.3.0
+## v0.2.0
 
 Add user-configurable options.
 
@@ -40,7 +34,7 @@ Add user-configurable options.
 - [ ] feat: toggle comments
 - [ ] feat: include condition for comments
 
-## v0.4.0
+## v0.3.0
 
 Support XTCH format for Xteink devices.
 
@@ -48,7 +42,7 @@ Support XTCH format for Xteink devices.
 - [ ] feat(xtch): initial rendering pipeline
 - [ ] feat(ui): support XTCH output
 
-## v0.5.0
+## v0.4.0
 
 UX and performance improvements.
 

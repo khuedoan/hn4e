@@ -33,6 +33,7 @@ Each event has `event: progress` and a JSON `data` payload:
 |---|---|
 | `fetching` | Querying HN Algolia API for popular stories |
 | `extracting` | Extracting article content from URLs |
+| `comments` | Fetching comment trees from HN |
 | `generating` | Building the EPUB file |
 | `done` | Generation complete; `message` contains the download token |
 | `error` | Generation failed; `message` contains the error description |

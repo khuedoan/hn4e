@@ -1,6 +1,6 @@
 # Data sources reference
 
-Hacker News for E-readers uses the HN Search API (powered by Algolia) for story discovery, and fetches article content directly from source URLs.
+Hacker News for E-readers uses the HN Search API (powered by Algolia) for story discovery and comment trees, and fetches article content directly from source URLs.
 
 ## HN Search API (Algolia)
 
@@ -33,6 +33,27 @@ Story fields used:
 | `created_at` | string | ISO 8601 creation timestamp |
 
 When `url` is null (Ask HN, Show HN), the story URL falls back to the HN discussion page.
+
+### Comment trees
+
+When generating an EPUB for selected stories, the server fetches the full item (including nested comment tree) from the Algolia items endpoint:
+
+```
+GET /items/{storyId}
+```
+
+The response `children` array contains recursively nested comment objects. Each comment has:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Comment ID |
+| `author` | string or null | Username (null for deleted comments) |
+| `text` | string or null | Comment HTML (null for deleted comments) |
+| `created_at` | string | ISO 8601 creation timestamp |
+| `type` | string | Item type ("comment", "pollopt", etc.) |
+| `children` | array | Nested replies |
+
+The comment tree is flattened into a depth-annotated list via pre-order traversal. Deleted comments (null author or text) and non-comment types are skipped, but their child replies are preserved.
 
 ## Article extraction
 
