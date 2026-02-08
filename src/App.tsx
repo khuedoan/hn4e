@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
 
@@ -87,6 +88,7 @@ function App() {
 
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [downloadToken, setDownloadToken] = useState<string | null>(null);
 
   const downloadRef = useRef<HTMLAnchorElement>(null);
 
@@ -151,8 +153,8 @@ function App() {
         setIsGenerating(false);
         eventSource.close();
 
-        // Auto-download the generated EPUB
         const token = data.message;
+        setDownloadToken(token);
         const link = downloadRef.current;
         if (link) {
           link.href = `/api/download/${token}`;
@@ -178,28 +180,24 @@ function App() {
     };
   }, [selectedIds, settings.includeComments]);
 
+  // Extracting phase reports incremental progress, generating phase has no
+  // granular progress so we hold at 90% until done.
   const progressPercent = progress
-    ? progress.total > 0
-      ? Math.round((progress.current / progress.total) * 100)
-      : 0
+    ? progress.phase === "done"
+      ? 100
+      : progress.phase === "generating"
+        ? 90
+        : progress.total > 0
+          ? Math.round((progress.current / progress.total) * 90)
+          : 0
     : 0;
-
-  const phaseLabel = progress
-    ? {
-        extracting: "Extracting articles",
-        comments: "Fetching comments",
-        generating: "Generating EPUB",
-        done: "Done",
-        error: "Error",
-      }[progress.phase]
-    : null;
 
   useEffect(() => {
     fetchStories();
   }, [fetchStories]);
 
   return (
-    <div className="mx-auto flex h-svh max-w-2xl flex-col gap-4 px-4 py-6">
+    <div className="mx-auto flex h-svh max-w-2xl flex-col gap-4 px-4 pt-6 pb-3">
       {/* Hidden link for auto-download */}
       <a ref={downloadRef} className="sr-only" download />
 
@@ -322,8 +320,8 @@ function App() {
         ) : null}
       </div>
 
-      {!isGenerating && (
-        <div className="flex shrink-0 gap-2">
+      <div className="shrink-0 space-y-2">
+        <div className="flex gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="icon">
@@ -350,43 +348,37 @@ function App() {
           <Button
             className="flex-1"
             onClick={generate}
-            disabled={selectedIds.size === 0}
+            disabled={selectedIds.size === 0 || isGenerating}
           >
-            Generate EPUB ({selectedIds.size})
+            {isGenerating ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              `Generate EPUB (${selectedIds.size})`
+            )}
           </Button>
         </div>
-      )}
 
-      {isGenerating && (
-        <div
-          className="relative h-10 shrink-0 overflow-hidden rounded-md bg-green-100"
-        >
-          {progress?.phase === "extracting" ? (
-            <div
-              className="absolute inset-y-0 left-0 bg-green-500 transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          ) : null}
-          <div className="relative flex h-full items-center justify-center gap-2 text-sm font-medium text-green-900">
-            <Loader2 className="size-4 animate-spin" />
-            {!progress
-              ? "Connecting..."
-              : progress.phase === "extracting"
-                ? `${phaseLabel} (${progress.current}/${progress.total})`
-                : "Generating EPUB..."}
-          </div>
+        <div className="h-4 flex items-center justify-center">
+          {progress?.phase === "done" ? (
+            <span className="text-[0.65rem] text-muted-foreground">
+              Export completed.{" "}
+              <a
+                href={`/api/download/${downloadToken}`}
+                className="underline hover:text-foreground"
+              >
+                Click here if download did not start automatically.
+              </a>
+            </span>
+          ) : progress?.phase === "error" ? (
+            <span className="text-[0.65rem] text-destructive">{progress.message}</span>
+          ) : (
+            <Progress value={progressPercent} />
+          )}
         </div>
-      )}
-
-      {!isGenerating && progress?.phase === "error" && (
-        <p className="text-sm text-destructive">{progress.message}</p>
-      )}
-
-      {!isGenerating && progress?.phase === "done" && (
-        <p className="text-sm text-muted-foreground">
-          Download started automatically.
-        </p>
-      )}
+      </div>
 
     </div>
   );

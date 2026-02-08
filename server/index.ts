@@ -151,8 +151,6 @@ app.get("/api/download/:token", (c) => {
     return c.json({ error: "Download not found or expired" }, 404);
   }
 
-  pendingDownloads.delete(token);
-
   const date = new Date().toISOString().split("T")[0];
   return new Response(new Uint8Array(buffer), {
     headers: {
