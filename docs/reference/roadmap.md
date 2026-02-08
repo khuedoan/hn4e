@@ -20,7 +20,7 @@ Add user-configurable options.
 - [x] feat: configurable time range for popular source
 - [x] feat: configurable max story count
 - [x] feat(ui): better progress display
-- [x] feat: settings comments and format
+- [x] feat: settings for comments and output format
 
 ## v0.3.0
 
@@ -34,7 +34,6 @@ UX and performance improvements.
 
 Support XTCH format for Xteink devices.
 
-- [ ] feat(ui): output format selection
 - [ ] feat(xtch): initial rendering pipeline
 - [ ] feat(ui): support XTCH output
 
