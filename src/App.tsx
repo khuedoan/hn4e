@@ -213,26 +213,15 @@ function App() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-1 ml-auto">
-          {stories.length > 0 && (
-            <>
-              <Button variant="ghost" size="xs" onClick={selectAll}>
-                All
-              </Button>
-              <Button variant="ghost" size="xs" onClick={deselectAll}>
-                None
-              </Button>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={fetchStories}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={fetchStories}
+          disabled={isFetching}
+          className="ml-auto"
+        >
+          <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+        </Button>
       </div>
 
       {fetchError && (
@@ -247,6 +236,18 @@ function App() {
           </div>
         ) : stories.length > 0 ? (
           <>
+            <label
+              className="flex items-center gap-3 border-b px-3 py-2 hover:bg-muted/50 cursor-pointer sticky top-0 bg-background z-10"
+            >
+              <Checkbox
+                checked={selectedIds.size === stories.length ? true : selectedIds.size > 0 ? "indeterminate" : false}
+                onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
+                disabled={isGenerating}
+              />
+              <span className="text-sm text-muted-foreground">
+                Select all
+              </span>
+            </label>
             {stories.map((story) => (
               <label
                 key={story.id}
