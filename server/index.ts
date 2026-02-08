@@ -4,18 +4,32 @@ import { streamSSE } from "hono/streaming";
 import { fetchPopularStories } from "./hn.ts";
 import { extractArticles } from "./extract.ts";
 import { generateEpub } from "./epub.ts";
-import type { GenerationProgress } from "./types.ts";
+import type { Story, GenerationProgress } from "./types.ts";
 
 const app = new Hono();
 
 app.use("/*", cors());
 
-// SSE endpoint that streams progress and ends with a download token.
-// The generated EPUB is held in memory until downloaded (or 5 min timeout).
+// Return the story list for user selection before generating
+app.get("/api/stories", async (c) => {
+  const count = Math.min(Math.max(parseInt(c.req.query("count") ?? "100"), 1), 300);
+  const stories = await fetchPopularStories(count);
+  return c.json(stories);
+});
+
+// SSE endpoint that extracts selected stories and generates an EPUB.
+// Accepts story IDs as a comma-separated query parameter since EventSource
+// only supports GET requests.
 const pendingDownloads = new Map<string, Buffer>();
 
-app.get("/api/generate", (c) => {
-  const count = Math.min(Math.max(parseInt(c.req.query("count") ?? "100"), 1), 300);
+app.get("/api/generate", async (c) => {
+  const ids = c.req.query("ids")?.split(",").filter(Boolean) ?? [];
+  if (ids.length === 0) {
+    return c.json({ error: "No story IDs provided" }, 400);
+  }
+
+  // Fetch the full story data for the selected IDs
+  const stories = await fetchStoriesByIds(ids);
 
   return streamSSE(c, async (stream) => {
     function sendProgress(progress: GenerationProgress) {
@@ -26,22 +40,6 @@ app.get("/api/generate", (c) => {
     }
 
     try {
-      await sendProgress({
-        phase: "fetching",
-        current: 0,
-        total: count,
-        message: `Fetching ${count} popular stories from Hacker News...`,
-      });
-
-      const stories = await fetchPopularStories(count);
-
-      await sendProgress({
-        phase: "fetching",
-        current: stories.length,
-        total: count,
-        message: `Fetched ${stories.length} stories.`,
-      });
-
       await sendProgress({
         phase: "extracting",
         current: 0,
@@ -68,7 +66,6 @@ app.get("/api/generate", (c) => {
 
       const epubBuffer = await generateEpub(articles);
 
-      // Store the EPUB for download with a unique token
       const token = crypto.randomUUID();
       pendingDownloads.set(token, epubBuffer);
 
@@ -92,6 +89,36 @@ app.get("/api/generate", (c) => {
     }
   });
 });
+
+// Fetch stories by their IDs from the Algolia API
+async function fetchStoriesByIds(ids: string[]): Promise<Story[]> {
+  const ALGOLIA_API = "https://hn.algolia.com/api/v1";
+  const results: Story[] = [];
+
+  // Algolia supports fetching individual items by ID
+  const fetches = ids.map(async (id) => {
+    const response = await fetch(`${ALGOLIA_API}/items/${id}`);
+    if (!response.ok) return null;
+
+    const item = await response.json();
+    return {
+      id: String(item.id),
+      title: item.title ?? "",
+      url: item.url ?? `https://news.ycombinator.com/item?id=${item.id}`,
+      author: item.author ?? "",
+      points: item.points ?? 0,
+      commentCount: item.children?.length ?? 0,
+      createdAt: item.created_at ?? "",
+    } satisfies Story;
+  });
+
+  const settled = await Promise.all(fetches);
+  for (const story of settled) {
+    if (story) results.push(story);
+  }
+
+  return results;
+}
 
 app.get("/api/download/:token", (c) => {
   const token = c.req.param("token");

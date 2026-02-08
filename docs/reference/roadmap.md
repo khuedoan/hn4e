@@ -9,6 +9,7 @@ content, and produces a downloadable EPUB file.
 - [x] feat: fetch popular stories from the HN Algolia API
 - [x] feat: extract article content
 - [x] feat: generate EPUB with one chapter per story
+- [x] feat: filter articles to export
 
 ## v0.2.0
 

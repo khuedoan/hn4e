@@ -18,7 +18,7 @@ export interface ExtractedArticle {
 }
 
 export interface GenerationProgress {
-  phase: "fetching" | "extracting" | "generating" | "done" | "error";
+  phase: "extracting" | "generating" | "done" | "error";
   current: number;
   total: number;
   message: string;
