@@ -15,17 +15,43 @@ const MAX_INDENT_DEPTH = 5;
 export function renderComments(comments: Comment[]): string {
   if (comments.length === 0) return "";
 
-  const rendered = comments.map((c) => {
-    const indent = Math.min(c.depth, MAX_INDENT_DEPTH);
-    const marginLeft = indent * 1.5;
-    const borderLeft = indent > 0 ? "border-left: 2px solid #ccc; padding-left: 0.5em;" : "";
-    return `<div style="margin-left: ${marginLeft}em; margin-bottom: 0.8em; ${borderLeft}">
-  <p><small><strong>${escapeHtml(c.author)}</strong></small></p>
-  ${c.text}
-</div>`;
-  });
+  // Build nested HTML so that each depth level's border-left wraps all its
+  // children, keeping the indent visual continuous throughout the thread.
+  const lines: string[] = [];
+  let currentDepth = 0;
 
-  return rendered.join("\n");
+  for (const c of comments) {
+    const indent = Math.min(c.depth, MAX_INDENT_DEPTH);
+
+    // Close deeper nesting levels when moving back up
+    while (currentDepth > indent) {
+      lines.push("</div>");
+      currentDepth--;
+    }
+
+    // Open new nesting levels when going deeper
+    while (currentDepth < indent) {
+      lines.push(
+        `<div style="margin-left: 1.5em; border-left: 2px solid #ccc; padding-left: 0.5em;">`
+      );
+      currentDepth++;
+    }
+
+    lines.push(
+      `<div style="margin-bottom: 0.8em;">`,
+      `  <p><small><strong>${escapeHtml(c.author)}</strong></small></p>`,
+      `  ${c.text}`,
+      `</div>`
+    );
+  }
+
+  // Close any remaining open nesting divs
+  while (currentDepth > 0) {
+    lines.push("</div>");
+    currentDepth--;
+  }
+
+  return lines.join("\n");
 }
 
 function buildChapters(article: ExtractedArticle, index: number): Chapter[] {

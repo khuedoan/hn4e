@@ -174,16 +174,20 @@ describe("renderComments", () => {
     expect(html).toContain("<p>Hello</p>");
   });
 
-  test("indents nested comments", () => {
+  test("indents nested comments with nesting wrappers", () => {
     const comments: Comment[] = [
       { id: 1, author: "alice", text: "<p>Top</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
       { id: 2, author: "bob", text: "<p>Reply</p>", createdAt: "2024-01-01T00:01:00Z", depth: 1 },
       { id: 3, author: "carol", text: "<p>Deep</p>", createdAt: "2024-01-01T00:02:00Z", depth: 2 },
     ];
     const html = renderComments(comments);
-    expect(html).toContain("margin-left: 0em");
-    expect(html).toContain("margin-left: 1.5em");
-    expect(html).toContain("margin-left: 3em");
+    // Each nesting level opens a wrapper div with margin-left and border-left
+    const wrapperCount = (html.match(/margin-left: 1\.5em; border-left: 2px solid #ccc/g) || []).length;
+    expect(wrapperCount).toBe(2); // one for depth 1, one for depth 2
+    // Top-level comment has no nesting wrapper
+    expect(html).toContain("alice");
+    expect(html).toContain("bob");
+    expect(html).toContain("carol");
   });
 
   test("caps indentation at max depth", () => {
@@ -191,8 +195,24 @@ describe("renderComments", () => {
       { id: 1, author: "deep", text: "<p>Very deep</p>", createdAt: "2024-01-01T00:00:00Z", depth: 10 },
     ];
     const html = renderComments(comments);
-    // Should cap at depth 5 = 7.5em
-    expect(html).toContain("margin-left: 7.5em");
+    // Should cap at depth 5, meaning 5 nesting wrapper divs
+    const wrapperCount = (html.match(/margin-left: 1\.5em; border-left: 2px solid #ccc/g) || []).length;
+    expect(wrapperCount).toBe(5);
+  });
+
+  test("closes nesting wrappers when depth decreases", () => {
+    const comments: Comment[] = [
+      { id: 1, author: "alice", text: "<p>Top</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+      { id: 2, author: "bob", text: "<p>Reply</p>", createdAt: "2024-01-01T00:01:00Z", depth: 1 },
+      { id: 3, author: "carol", text: "<p>Sibling</p>", createdAt: "2024-01-01T00:02:00Z", depth: 0 },
+    ];
+    const html = renderComments(comments);
+    // bob's reply should be inside a nesting wrapper, carol should be back at root level
+    const bobIndex = html.indexOf("bob");
+    const closeDivAfterBob = html.indexOf("</div>", html.indexOf("</div>", bobIndex) + 1);
+    const carolIndex = html.indexOf("carol");
+    // carol should appear after the nesting wrapper for bob is closed
+    expect(carolIndex).toBeGreaterThan(closeDivAfterBob);
   });
 
   test("escapes author names in HTML", () => {
