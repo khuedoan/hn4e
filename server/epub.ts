@@ -38,14 +38,6 @@ export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer
     publisher: "Hacker News for E-readers",
     description: `Hacker News archive with ${articles.length} stories, generated on ${new Date().toISOString().split("T")[0]}.`,
     tocTitle: "Table of Contents",
-    // The library always generates toc.xhtml, so we override the template
-    // with a minimal nav element that satisfies EPUB 3 spec but renders nothing visible.
-    tocXHTML: `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="<%- lang %>" lang="<%- lang %>">
-<head><title><%- title %></title><meta charset="UTF-8" /></head>
-<body><nav id="toc" epub:type="toc"><ol></ol></nav></body>
-</html>`,
     date: new Date().toISOString().split("T")[0],
     lang: "en",
     prependChapterTitles: true,

@@ -1,7 +1,7 @@
 # HNE - Hacker News for E-readers
 
-HNE generates offline archives from Hacker News (articles and comments),
-packaged into files optimized for E Ink readers.
+HNE generates offline archives of popular Hacker News articles,
+packaged into EPUB files optimized for E Ink readers.
 
 ## Usage
 
