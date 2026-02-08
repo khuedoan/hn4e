@@ -5,6 +5,7 @@ import { fetchPopularStories } from "./hn.ts";
 import { flattenComments } from "./comments.ts";
 import { extractArticles } from "./extract.ts";
 import { generateEpub } from "./epub.ts";
+import { Cache, ONE_HOUR } from "./cache.ts";
 import type { Comment, Story, GenerationProgress } from "./types.ts";
 
 const app = new Hono();
@@ -115,13 +116,27 @@ interface StoryWithComments {
   comments: Comment[];
 }
 
+export const storyCache = new Cache<StoryWithComments>(ONE_HOUR, 300);
+
 // Fetch stories and their comment trees by ID from the Algolia items API.
 // The items endpoint returns the full nested comment tree, so we extract
 // both story metadata and comments from a single request per story.
 async function fetchStoriesByIds(ids: string[]): Promise<StoryWithComments[]> {
   const ALGOLIA_API = "https://hn.algolia.com/api/v1";
 
-  const fetches = ids.map(async (id): Promise<StoryWithComments | null> => {
+  const results: StoryWithComments[] = [];
+  const uncachedIds: string[] = [];
+
+  for (const id of ids) {
+    const cached = storyCache.get(id);
+    if (cached) {
+      results.push(cached);
+    } else {
+      uncachedIds.push(id);
+    }
+  }
+
+  const fetches = uncachedIds.map(async (id): Promise<StoryWithComments | null> => {
     const response = await fetch(`${ALGOLIA_API}/items/${id}`);
     if (!response.ok) return null;
 
@@ -136,11 +151,17 @@ async function fetchStoriesByIds(ids: string[]): Promise<StoryWithComments[]> {
       createdAt: item.created_at ?? "",
     };
     const comments = flattenComments(item.children ?? []);
-    return { story, comments };
+    const entry = { story, comments };
+    storyCache.set(id, entry);
+    return entry;
   });
 
-  const settled = await Promise.all(fetches);
-  return settled.filter((r): r is StoryWithComments => r !== null);
+  const fetched = await Promise.all(fetches);
+  for (const r of fetched) {
+    if (r) results.push(r);
+  }
+
+  return results;
 }
 
 app.get("/api/download/:token", (c) => {

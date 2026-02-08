@@ -1,9 +1,22 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM, VirtualConsole } from "jsdom";
 import type { Story, ExtractedArticle } from "./types.ts";
+import { Cache, ONE_HOUR } from "./cache.ts";
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+// Cache extracted content by URL so the same article linked from multiple
+// stories is only fetched and parsed once. Stores only the extraction result
+// fields to avoid holding story metadata or comments.
+interface CachedExtraction {
+  content: string | null;
+  textContent: string | null;
+  excerpt: string | null;
+  extracted: boolean;
+}
+
+export const articleCache = new Cache<CachedExtraction>(ONE_HOUR, 300);
 
 // Extract article content from a URL using Readability.
 // Returns null content on failure (title + URL fallback is handled by the caller).
@@ -20,11 +33,25 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
     };
   }
 
+  const cached = articleCache.get(story.url);
+  if (cached) {
+    return { story, ...cached, comments: [] };
+  }
+
+  const result = await fetchAndExtract(story.url);
+  articleCache.set(story.url, result);
+
+  return { story, ...result, comments: [] };
+}
+
+async function fetchAndExtract(url: string): Promise<CachedExtraction> {
+  const fail: CachedExtraction = { content: null, textContent: null, excerpt: null, extracted: false };
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    const response = await fetch(story.url, {
+    const response = await fetch(url, {
       signal: controller.signal,
       headers: {
         "User-Agent": "HN4E/0.1.0 (Hacker News for E-readers archive generator)",
@@ -33,41 +60,35 @@ export async function extractArticle(story: Story): Promise<ExtractedArticle> {
     });
     clearTimeout(timeout);
 
-    if (!response.ok) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
-    }
+    if (!response.ok) return fail;
 
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
+      return fail;
     }
 
     const contentLength = response.headers.get("content-length");
     if (contentLength && parseInt(contentLength) > MAX_RESPONSE_BYTES) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
+      return fail;
     }
 
     const html = await response.text();
     // Suppress jsdom CSS parsing warnings that are irrelevant for content extraction
     const virtualConsole = new VirtualConsole();
-    const dom = new JSDOM(html, { url: story.url, virtualConsole });
+    const dom = new JSDOM(html, { url, virtualConsole });
     const reader = new Readability(dom.window.document);
     const article = reader.parse();
 
-    if (!article || !article.content) {
-      return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
-    }
+    if (!article || !article.content) return fail;
 
     return {
-      story,
       content: article.content,
       textContent: article.textContent ?? null,
       excerpt: article.excerpt ?? null,
       extracted: true,
-      comments: [],
     };
   } catch {
-    return { story, content: null, textContent: null, excerpt: null, extracted: false, comments: [] };
+    return fail;
   }
 }
 

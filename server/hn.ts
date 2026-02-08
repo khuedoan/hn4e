@@ -1,6 +1,9 @@
 import type { Story } from "./types.ts";
+import { Cache, ONE_HOUR } from "./cache.ts";
 
 const ALGOLIA_API = "https://hn.algolia.com/api/v1";
+
+export const feedCache = new Cache<Story[]>(ONE_HOUR, 20);
 
 interface AlgoliaHit {
   objectID: string;
@@ -21,6 +24,10 @@ interface AlgoliaResponse {
 // Fetch top popular stories from HN Algolia API.
 // Uses the search endpoint sorted by popularity (points) over the given time range.
 export async function fetchPopularStories(count: number = 300, timeRangeSeconds: number = 86400): Promise<Story[]> {
+  const cacheKey = `feed:${count}:${timeRangeSeconds}`;
+  const cached = feedCache.get(cacheKey);
+  if (cached) return cached;
+
   const stories: Story[] = [];
   const perPage = 50;
   const pages = Math.ceil(count / perPage);
@@ -53,5 +60,7 @@ export async function fetchPopularStories(count: number = 300, timeRangeSeconds:
     if (data.hits.length < hitsThisPage) break;
   }
 
-  return stories.slice(0, count);
+  const result = stories.slice(0, count);
+  feedCache.set(cacheKey, result);
+  return result;
 }

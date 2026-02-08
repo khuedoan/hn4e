@@ -1,5 +1,5 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from "bun:test";
-import { fetchPopularStories } from "./hn.ts";
+import { fetchPopularStories, feedCache } from "./hn.ts";
 
 function makeAlgoliaHit(i: number) {
   return {
@@ -23,6 +23,7 @@ let mockFetch: ReturnType<typeof mock>;
 beforeEach(() => {
   mockFetch = mock();
   globalThis.fetch = mockFetch as unknown as typeof fetch;
+  feedCache.clear();
 });
 
 afterAll(() => {

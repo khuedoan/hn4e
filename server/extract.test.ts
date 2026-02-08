@@ -1,5 +1,5 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from "bun:test";
-import { extractArticle, extractArticles } from "./extract.ts";
+import { extractArticle, extractArticles, articleCache } from "./extract.ts";
 import type { Story } from "./types.ts";
 
 function makeStory(overrides: Partial<Story> = {}): Story {
@@ -21,6 +21,7 @@ let mockFetch: ReturnType<typeof mock>;
 beforeEach(() => {
   mockFetch = mock();
   globalThis.fetch = mockFetch as unknown as typeof fetch;
+  articleCache.clear();
 });
 
 afterAll(() => {
