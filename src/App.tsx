@@ -20,7 +20,7 @@ import { Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "l
 
 const SETTINGS_KEY = "hn4e-settings";
 
-type ExportFormat = "epub" | "xtch";
+type ExportFormat = "epub";
 
 interface Settings {
   includeComments: boolean;
@@ -360,9 +360,6 @@ function App() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="epub">EPUB</SelectItem>
-                      <SelectItem value="xtch" disabled className="text-muted-foreground/50">
-                        XTCH (coming soon)
-                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -7,7 +7,7 @@ User-configurable options for the digest.
 - Configure time range for fetching popular stories
 - Configure max story count
 - Toggle comment inclusion
-- Export format setting (EPUB for now, XTCH planned)
+- Export format setting (only EPUB for now)
 - UI improvements
 
 ## v0.1.0

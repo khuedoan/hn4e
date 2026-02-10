@@ -32,11 +32,9 @@ UX and performance improvements.
 
 ## v0.4.0
 
-Support XTCH format for Xteink devices.
+- [ ] feat: comment filtering
+- [ ] feat: add QR code to Hacker News discussion
 
-- [ ] feat(xtch): initial rendering pipeline
-- [ ] feat(ui): support XTCH output
+## Backlog
 
-## vX.X.X
-
-TBD.
+- [ ] feat: support XTCH format for Xteink devices
