@@ -25,6 +25,7 @@ type ExportFormat = "epub";
 
 interface Settings {
   includeComments: boolean;
+  includeQrCode: boolean;
   maxCommentDepth: number; // 1-10, or 11 for unlimited
   maxTopLevelComments: number; // 1-20, or 21 for unlimited
   maxCommentsPerStory: number; // 1-500, or 501 for unlimited
@@ -33,6 +34,7 @@ interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   includeComments: true,
+  includeQrCode: true,
   maxCommentDepth: 5,
   maxTopLevelComments: 11, // unlimited since top-level filtering is aggressive
   maxCommentsPerStory: 200,
@@ -180,6 +182,9 @@ function App() {
       params.set("maxTopLevelComments", sliderToParam(settings.maxTopLevelComments, SLIDER_CONFIGS.maxTopLevelComments.unlimited));
       params.set("maxCommentsPerStory", sliderToParam(settings.maxCommentsPerStory, SLIDER_CONFIGS.maxCommentsPerStory.unlimited));
     }
+    if (!settings.includeQrCode) {
+      params.set("qrCode", "false");
+    }
     const eventSource = new EventSource(`/api/generate?${params}`);
 
     eventSource.addEventListener("progress", (event) => {
@@ -240,6 +245,9 @@ function App() {
       params.set("maxCommentDepth", sliderToParam(settings.maxCommentDepth, SLIDER_CONFIGS.maxCommentDepth.unlimited));
       params.set("maxTopLevelComments", sliderToParam(settings.maxTopLevelComments, SLIDER_CONFIGS.maxTopLevelComments.unlimited));
       params.set("maxCommentsPerStory", sliderToParam(settings.maxCommentsPerStory, SLIDER_CONFIGS.maxCommentsPerStory.unlimited));
+    }
+    if (!settings.includeQrCode) {
+      params.set("qrCode", "false");
     }
     const eventSource = new EventSource(`/api/preview?${params}`);
     previewEventSourceRef.current = eventSource;
@@ -560,6 +568,17 @@ function App() {
                           }}
                         />
                       </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={settings.includeQrCode}
+                          onCheckedChange={(checked) => {
+                            const next = { ...settings, includeQrCode: !!checked };
+                            setSettings(next);
+                            saveSettings(next);
+                          }}
+                        />
+                        <Label className="text-xs text-muted-foreground cursor-pointer">QR code to discussion</Label>
+                      </label>
                     </div>
                   )}
                 </div>

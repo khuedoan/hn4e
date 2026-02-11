@@ -126,7 +126,12 @@ export function renderComments(comments: Comment[]): string {
   return lines.join("\n");
 }
 
-export async function buildChapters(article: ExtractedArticle, index: number): Promise<Chapter[]> {
+export interface BuildOptions {
+  includeQrCode?: boolean;
+}
+
+export async function buildChapters(article: ExtractedArticle, index: number, options: BuildOptions = {}): Promise<Chapter[]> {
+  const { includeQrCode = true } = options;
   const { story, content, extracted, comments } = article;
   const meta = `<p><small>
     <a href="${escapeHtml(story.url)}">${escapeHtml(story.url)}</a>
@@ -147,9 +152,12 @@ export async function buildChapters(article: ExtractedArticle, index: number): P
     },
   ];
 
-  const hnUrl = `https://news.ycombinator.com/item?id=${story.id}`;
-  const qrDataUrl = await QRCode.toDataURL(hnUrl, { margin: 1, width: 150 });
-  const qrHtml = `<p><img src="${qrDataUrl}" alt="QR code to HN discussion"/></p><hr/>`;
+  let qrHtml = "";
+  if (includeQrCode) {
+    const hnUrl = `https://news.ycombinator.com/item?id=${story.id}`;
+    const qrDataUrl = await QRCode.toDataURL(hnUrl, { margin: 1, width: 150 });
+    qrHtml = `<p><img src="${qrDataUrl}" alt="QR code to HN discussion"/></p><hr/>`;
+  }
 
   chapters.push({
     title: `${comments.length} Comments`,
@@ -160,7 +168,7 @@ export async function buildChapters(article: ExtractedArticle, index: number): P
   return chapters;
 }
 
-export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer> {
+export async function generateEpub(articles: ExtractedArticle[], buildOpts: BuildOptions = {}): Promise<Buffer> {
   const options: Options = {
     title: "Hacker News",
     author: ["Hacker News for E-readers"],
@@ -176,7 +184,7 @@ export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer
     css: EPUB_CSS,
   };
 
-  const chapterArrays = await Promise.all(articles.map((a, i) => buildChapters(a, i)));
+  const chapterArrays = await Promise.all(articles.map((a, i) => buildChapters(a, i, buildOpts)));
   const chapters: Chapter[] = chapterArrays.flat();
 
   const book = new CachedEPub(options, chapters);

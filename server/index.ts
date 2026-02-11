@@ -40,6 +40,7 @@ app.get("/api/generate", async (c) => {
   }
 
   const includeComments = c.req.query("comments") !== "false";
+  const includeQrCode = c.req.query("qrCode") !== "false";
 
   const commentFilter: CommentFilterOptions = {
     maxCommentDepth: parseInt(c.req.query("maxCommentDepth") ?? "-1") || -1,
@@ -94,7 +95,7 @@ app.get("/api/generate", async (c) => {
         message: "Generating EPUB...",
       });
 
-      const epubBuffer = await generateEpub(articles);
+      const epubBuffer = await generateEpub(articles, { includeQrCode });
 
       const token = crypto.randomUUID();
       pendingDownloads.set(token, epubBuffer);
@@ -183,6 +184,7 @@ app.get("/api/preview", async (c) => {
   }
 
   const includeComments = c.req.query("comments") !== "false";
+  const includeQrCode = c.req.query("qrCode") !== "false";
 
   const commentFilter: CommentFilterOptions = {
     maxCommentDepth: parseInt(c.req.query("maxCommentDepth") ?? "-1") || -1,
@@ -220,7 +222,7 @@ app.get("/api/preview", async (c) => {
           article.comments = filterComments(raw, commentFilter);
         }
 
-        const chapters = await buildChapters(article, i);
+        const chapters = await buildChapters(article, i, { includeQrCode });
 
         await stream.writeSSE({
           event: "article",

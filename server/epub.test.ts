@@ -257,4 +257,15 @@ describe("buildChapters", () => {
     expect(commentsChapter!.content).toContain("data:image/png;base64,");
     expect(commentsChapter!.content).toContain('alt="QR code to HN discussion"');
   });
+
+  test("omits QR code when includeQrCode is false", async () => {
+    const article = makeArticle({
+      comments: [{ id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 }],
+    });
+    const chapters = await buildChapters(article, 0, { includeQrCode: false });
+    const commentsChapter = chapters.find((ch) => ch.title?.includes("Comments"));
+    expect(commentsChapter).toBeDefined();
+    expect(commentsChapter!.content).not.toContain("QR code");
+    expect(commentsChapter!.content).toContain("alice");
+  });
 });

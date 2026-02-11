@@ -11,6 +11,7 @@ packaged into EPUB files optimized for E Ink readers.
 - Select which stories to include in the archive
 - Extract full article content from linked URLs
 - Include threaded comments (optional)
+- Preview the archive
 - Download as EPUB for offline reading on e-readers
 - Fast as fuck
 
@@ -24,7 +25,7 @@ Generated output:
 
 1. Open the web app.
 2. Select the stories you want.
-3. Generate and download the EPUB.
+3. Generate, preview and download the EPUB.
 4. Copy the file to your device.
 
 ## Development
