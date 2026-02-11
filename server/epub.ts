@@ -1,7 +1,14 @@
+import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { EPub, type Chapter, type Content, type Options } from "epub-gen-memory";
 import { retryFetch } from "epub-gen-memory/dist/lib/util/other.js";
 import { Cache } from "./cache.ts";
 import type { Comment, ExtractedArticle } from "./types.ts";
+
+const TEMPLATES_DIR = join(import.meta.dir, "templates");
+const TOC_NCX = readFileSync(join(TEMPLATES_DIR, "toc.ncx.ejs"), "utf-8");
+const TOC_XHTML = readFileSync(join(TEMPLATES_DIR, "toc.xhtml.ejs"), "utf-8");
+const EPUB_CSS = readFileSync(join(TEMPLATES_DIR, "epub.css"), "utf-8");
 
 function escapeHtml(text: string): string {
   return text
@@ -152,107 +159,20 @@ function buildChapters(article: ExtractedArticle, index: number): Chapter[] {
   return chapters;
 }
 
-// Custom toc.ncx template that nests comment chapters under their story chapter.
-// Comment chapters are identified by filename starting with "comments_".
-const TOC_NCX = `<?xml version="1.0" encoding="UTF-8"?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-    <head>
-        <meta name="dtb:uid" content="<%= id %>" />
-        <meta name="dtb:generator" content="epub-gen"/>
-        <meta name="dtb:depth" content="2"/>
-        <meta name="dtb:totalPageCount" content="0"/>
-        <meta name="dtb:maxPageNumber" content="0"/>
-    </head>
-    <docTitle>
-        <text><%= title %></text>
-    </docTitle>
-    <docAuthor>
-        <text><%= author %></text>
-    </docAuthor>
-    <navMap>
-        <% var _index = 0; %>
-        <% for (var i = 0; i < content.length; i++) { %>
-            <% var ch = content[i]; %>
-            <% if (ch.excludeFromToc) continue; %>
-            <% if (ch.filename.indexOf('comments_') === 0) continue; %>
-            <navPoint id="content_<%= i %>_<%= ch.id %>" playOrder="<%= _index++ %>" class="chapter">
-                <navLabel>
-                    <text><%= ch.title %></text>
-                </navLabel>
-                <content src="<%= ch.filename %>"/>
-                <% if (i + 1 < content.length && content[i + 1].filename.indexOf('comments_') === 0) { %>
-                    <% var cc = content[i + 1]; %>
-                    <navPoint id="content_<%= i + 1 %>_<%= cc.id %>" playOrder="<%= _index++ %>" class="chapter">
-                        <navLabel>
-                            <text><%= cc.title %></text>
-                        </navLabel>
-                        <content src="<%= cc.filename %>"/>
-                    </navPoint>
-                <% } %>
-            </navPoint>
-        <% } %>
-    </navMap>
-</ncx>`;
-
-// Custom toc.xhtml template that nests comment chapters under their story chapter.
-const TOC_XHTML = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="<%- lang %>" lang="<%- lang %>">
-<head>
-    <title><%= title %></title>
-    <meta charset="UTF-8" />
-    <link rel="stylesheet" type="text/css" href="style.css" />
-</head>
-<body>
-    <h1 class="h1"><%= tocTitle %></h1>
-    <nav id="toc" epub:type="toc">
-        <ol style="list-style: none">
-            <% for (var i = 0; i < content.length; i++) { %>
-                <% var ch = content[i]; %>
-                <% if (ch.excludeFromToc) continue; %>
-                <% if (ch.filename.indexOf('comments_') === 0) continue; %>
-                <li class="table-of-content">
-                    <a href="<%= ch.filename %>"><%= ch.title %></a>
-                    <% if (i + 1 < content.length && content[i + 1].filename.indexOf('comments_') === 0) { %>
-                        <ol style="list-style: none">
-                            <li class="table-of-content">
-                                <a href="<%= content[i + 1].filename %>"><%= content[i + 1].title %></a>
-                            </li>
-                        </ol>
-                    <% } %>
-                </li>
-            <% } %>
-        </ol>
-    </nav>
-</body>
-</html>`;
-
 export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer> {
   const options: Options = {
     title: "Hacker News",
     author: ["Hacker News for E-readers"],
     publisher: "Hacker News for E-readers",
     description: `Hacker News archive with ${articles.length} stories, generated on ${new Date().toISOString().split("T")[0]}.`,
-    tocTitle: "Table of Contents",
+    tocTitle: "Hacker News",
     date: new Date().toISOString().split("T")[0],
     lang: "en",
     prependChapterTitles: true,
     ignoreFailedDownloads: true,
     tocNCX: TOC_NCX,
     tocXHTML: TOC_XHTML,
-    css: `
-      body { font-family: serif; line-height: 1.6; }
-      p { margin: 1em 0; }
-      h1, h2, h3 { font-family: sans-serif; }
-      a { color: #1a0dab; }
-      small { color: #666; }
-      hr { border: none; border-top: 1px solid #ccc; margin: 1em 0; }
-      img { max-width: 100%; height: auto; }
-      pre { white-space: pre-wrap; word-wrap: break-word; background: #f5f5f5; padding: 0.5em; }
-      code { font-size: 0.9em; }
-      blockquote { margin-left: 1em; padding-left: 1em; border-left: 3px solid #ccc; }
-      h3 { margin-top: 1.5em; }
-    `,
+    css: EPUB_CSS,
   };
 
   const chapters: Chapter[] = articles.flatMap((a, i) => buildChapters(a, i));

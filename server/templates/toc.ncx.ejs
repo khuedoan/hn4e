@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+    <head>
+        <meta name="dtb:uid" content="<%= id %>" />
+        <meta name="dtb:generator" content="epub-gen"/>
+        <meta name="dtb:depth" content="2"/>
+        <meta name="dtb:totalPageCount" content="0"/>
+        <meta name="dtb:maxPageNumber" content="0"/>
+    </head>
+    <docTitle>
+        <text><%= title %></text>
+    </docTitle>
+    <docAuthor>
+        <text><%= author %></text>
+    </docAuthor>
+    <navMap>
+        <% var _index = 0; %>
+        <% for (var i = 0; i < content.length; i++) { %>
+            <% var ch = content[i]; %>
+            <% if (ch.excludeFromToc) continue; %>
+            <% if (ch.filename.indexOf('comments_') === 0) continue; %>
+            <navPoint id="content_<%= i %>_<%= ch.id %>" playOrder="<%= _index++ %>" class="chapter">
+                <navLabel>
+                    <text><%= ch.title %></text>
+                </navLabel>
+                <content src="<%= ch.filename %>"/>
+                <% if (i + 1 < content.length && content[i + 1].filename.indexOf('comments_') === 0) { %>
+                    <% var cc = content[i + 1]; %>
+                    <navPoint id="content_<%= i + 1 %>_<%= cc.id %>" playOrder="<%= _index++ %>" class="chapter">
+                        <navLabel>
+                            <text><%= cc.title %></text>
+                        </navLabel>
+                        <content src="<%= cc.filename %>"/>
+                    </navPoint>
+                <% } %>
+            </navPoint>
+        <% } %>
+    </navMap>
+</ncx>

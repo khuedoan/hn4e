@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="<%- lang %>" lang="<%- lang %>">
+<head>
+    <title><%= title %></title>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+    <h1 class="h1"><%= tocTitle %></h1>
+    <nav id="toc" epub:type="toc">
+        <ol style="list-style: none">
+            <% for (var i = 0; i < content.length; i++) { %>
+                <% var ch = content[i]; %>
+                <% if (ch.excludeFromToc) continue; %>
+                <% if (ch.filename.indexOf('comments_') === 0) continue; %>
+                <li class="table-of-content">
+                    <a href="<%= ch.filename %>"><%= ch.title %></a>
+                    <% if (i + 1 < content.length && content[i + 1].filename.indexOf('comments_') === 0) { %>
+                        <ol style="list-style: none">
+                            <li class="table-of-content">
+                                <a href="<%= content[i + 1].filename %>"><%= content[i + 1].title %></a>
+                            </li>
+                        </ol>
+                    <% } %>
+                </li>
+            <% } %>
+        </ol>
+    </nav>
+</body>
+</html>
