@@ -2,7 +2,7 @@
 
 ## v0.2.0
 
-User-configurable options for the digest.
+User-configurable options for the archive.
 
 - Configure time range for fetching popular stories
 - Configure max story count
@@ -12,7 +12,7 @@ User-configurable options for the digest.
 
 ## v0.1.0
 
-Generate an EPUB digest from popular Hacker News stories.
+Generate an EPUB archive from popular Hacker News stories.
 
 - Browse popular stories fetched from the HN Algolia API
 - Select which stories to include in the archive

@@ -229,7 +229,7 @@ const TOC_XHTML = `<?xml version="1.0" encoding="UTF-8"?>
 
 export async function generateEpub(articles: ExtractedArticle[]): Promise<Buffer> {
   const options: Options = {
-    title: "Hacker News Archive",
+    title: "Hacker News",
     author: ["Hacker News for E-readers"],
     publisher: "Hacker News for E-readers",
     description: `Hacker News archive with ${articles.length} stories, generated on ${new Date().toISOString().split("T")[0]}.`,

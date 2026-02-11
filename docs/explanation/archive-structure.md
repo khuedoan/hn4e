@@ -4,14 +4,15 @@ This document explains how HN4E organizes content within a generated EPUB file a
 
 ## Design goals
 
-The digest structure is designed for two constraints:
+The archive structure is designed for two constraints:
 
 1. E Ink devices have slow page turns and limited navigation compared to phones or tablets. Jumping to a specific story should be fast and predictable.
-2. The reading experience should be self-contained. The digest should work completely offline with no network access.
+2. The reading experience should be self-contained. The archive should work completely offline with no network access.
+3. The styling should gracefully degrade and remain readable even if the device ignores CSS styles.
 
 ## Book-level organization
 
-Every digest is a flat list of story chapters (one per story), each containing:
+Every archive is a flat list of story chapters (one per story), each containing:
 
 - A metadata block with the URL, points, and a link to the HN discussion.
 - The extracted article content (reader view), or a fallback message if extraction failed.

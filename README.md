@@ -8,7 +8,7 @@ packaged into EPUB files optimized for E Ink readers.
 ![Screenshot](https://github.com/user-attachments/assets/bdb181f0-5c41-4566-91fc-e8006fb1b6af)
 
 - Browse popular Hacker News stories with configurable time range and count
-- Select which stories to include in the digest
+- Select which stories to include in the archive
 - Extract full article content from linked URLs
 - Include threaded comments (optional)
 - Download as EPUB for offline reading on e-readers
