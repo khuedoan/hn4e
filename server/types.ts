@@ -26,6 +26,12 @@ export interface ExtractedArticle {
   comments: Comment[];
 }
 
+export interface CommentFilterOptions {
+  maxCommentDepth: number; // -1 = unlimited
+  maxCommentsPerStory: number; // -1 = unlimited
+  maxTopLevelComments: number; // -1 = unlimited
+}
+
 export interface GenerationProgress {
   phase: "extracting" | "comments" | "generating" | "done" | "error";
   current: number;

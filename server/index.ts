@@ -2,11 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { fetchPopularStories } from "./hn.ts";
-import { flattenComments } from "./comments.ts";
+import { flattenComments, filterComments } from "./comments.ts";
 import { extractArticles } from "./extract.ts";
 import { generateEpub } from "./epub.ts";
 import { Cache, ONE_HOUR } from "./cache.ts";
-import type { Comment, Story, GenerationProgress } from "./types.ts";
+import type { Comment, CommentFilterOptions, Story, GenerationProgress } from "./types.ts";
 
 const app = new Hono();
 
@@ -41,6 +41,12 @@ app.get("/api/generate", async (c) => {
 
   const includeComments = c.req.query("comments") !== "false";
 
+  const commentFilter: CommentFilterOptions = {
+    maxCommentDepth: parseInt(c.req.query("maxCommentDepth") ?? "-1") || -1,
+    maxCommentsPerStory: parseInt(c.req.query("maxCommentsPerStory") ?? "-1") || -1,
+    maxTopLevelComments: parseInt(c.req.query("maxTopLevelComments") ?? "-1") || -1,
+  };
+
   // Fetch the full story data and comment trees for the selected IDs
   const storiesWithComments = await fetchStoriesByIds(ids);
   const stories = storiesWithComments.map((s) => s.story);
@@ -73,9 +79,12 @@ app.get("/api/generate", async (c) => {
 
       // Attach comments to each extracted article
       for (const article of articles) {
-        article.comments = includeComments
-          ? commentsByStoryId.get(article.story.id) ?? []
-          : [];
+        if (!includeComments) {
+          article.comments = [];
+        } else {
+          const raw = commentsByStoryId.get(article.story.id) ?? [];
+          article.comments = filterComments(raw, commentFilter);
+        }
       }
 
       await sendProgress({

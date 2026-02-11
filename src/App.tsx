@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
@@ -24,13 +25,34 @@ type ExportFormat = "epub";
 
 interface Settings {
   includeComments: boolean;
+  maxCommentDepth: number; // 1-10, or 11 for unlimited
+  maxTopLevelComments: number; // 1-20, or 21 for unlimited
+  maxCommentsPerStory: number; // 1-500, or 501 for unlimited
   exportFormat: ExportFormat;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   includeComments: true,
+  maxCommentDepth: 5,
+  maxTopLevelComments: 11, // unlimited since top-level filtering is aggressive
+  maxCommentsPerStory: 200,
   exportFormat: "epub",
 };
+
+// Slider configs: the max slider position is one past the real max and means "Unlimited"
+const SLIDER_CONFIGS = {
+  maxCommentDepth: { min: 1, max: 10, unlimited: 11 },
+  maxTopLevelComments: { min: 1, max: 20, unlimited: 21 },
+  maxCommentsPerStory: { min: 1, max: 500, unlimited: 501 },
+} as const;
+
+function sliderLabel(value: number, unlimited: number): string {
+  return value >= unlimited ? "\u221E" : String(value);
+}
+
+function sliderToParam(value: number, unlimited: number): string {
+  return value >= unlimited ? "-1" : String(value);
+}
 
 function loadSettings(): Settings {
   try {
@@ -145,7 +167,13 @@ function App() {
 
     const ids = Array.from(selectedIds).join(",");
     const params = new URLSearchParams({ ids });
-    if (!settings.includeComments) params.set("comments", "false");
+    if (!settings.includeComments) {
+      params.set("comments", "false");
+    } else {
+      params.set("maxCommentDepth", sliderToParam(settings.maxCommentDepth, SLIDER_CONFIGS.maxCommentDepth.unlimited));
+      params.set("maxTopLevelComments", sliderToParam(settings.maxTopLevelComments, SLIDER_CONFIGS.maxTopLevelComments.unlimited));
+      params.set("maxCommentsPerStory", sliderToParam(settings.maxCommentsPerStory, SLIDER_CONFIGS.maxCommentsPerStory.unlimited));
+    }
     const eventSource = new EventSource(`/api/generate?${params}`);
 
     eventSource.addEventListener("progress", (event) => {
@@ -181,7 +209,7 @@ function App() {
       setIsGenerating(false);
       eventSource.close();
     };
-  }, [selectedIds, settings.includeComments]);
+  }, [selectedIds, settings]);
 
   // Extracting phase reports incremental progress, generating phase has no
   // granular progress so we hold at 90% until done.
@@ -331,20 +359,81 @@ function App() {
                 <Settings className="size-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-56">
-              <div className="space-y-3">
+            <PopoverContent align="start" className="w-64">
+              <div className="space-y-4">
                 <p className="text-sm font-medium">Settings</p>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={settings.includeComments}
-                    onCheckedChange={(checked) => {
-                      const next = { ...settings, includeComments: !!checked };
-                      setSettings(next);
-                      saveSettings(next);
-                    }}
-                  />
-                  <Label className="cursor-pointer">Include comments</Label>
-                </label>
+
+                {/* Comments section */}
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={settings.includeComments}
+                      onCheckedChange={(checked) => {
+                        const next = { ...settings, includeComments: !!checked };
+                        setSettings(next);
+                        saveSettings(next);
+                      }}
+                    />
+                    <Label className="cursor-pointer">Include comments</Label>
+                  </label>
+                  {settings.includeComments && (
+                    <div className="space-y-3 pl-6">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label className="text-xs text-muted-foreground">Max comment depth</Label>
+                          <span className="text-xs tabular-nums">{sliderLabel(settings.maxCommentDepth, SLIDER_CONFIGS.maxCommentDepth.unlimited)}</span>
+                        </div>
+                        <Slider
+                          min={SLIDER_CONFIGS.maxCommentDepth.min}
+                          max={SLIDER_CONFIGS.maxCommentDepth.unlimited}
+                          step={1}
+                          value={[settings.maxCommentDepth]}
+                          onValueChange={([v]) => {
+                            const next = { ...settings, maxCommentDepth: v };
+                            setSettings(next);
+                            saveSettings(next);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label className="text-xs text-muted-foreground">Max top-level comments</Label>
+                          <span className="text-xs tabular-nums">{sliderLabel(settings.maxTopLevelComments, SLIDER_CONFIGS.maxTopLevelComments.unlimited)}</span>
+                        </div>
+                        <Slider
+                          min={SLIDER_CONFIGS.maxTopLevelComments.min}
+                          max={SLIDER_CONFIGS.maxTopLevelComments.unlimited}
+                          step={1}
+                          value={[settings.maxTopLevelComments]}
+                          onValueChange={([v]) => {
+                            const next = { ...settings, maxTopLevelComments: v };
+                            setSettings(next);
+                            saveSettings(next);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label className="text-xs text-muted-foreground">Max comments per story</Label>
+                          <span className="text-xs tabular-nums">{sliderLabel(settings.maxCommentsPerStory, SLIDER_CONFIGS.maxCommentsPerStory.unlimited)}</span>
+                        </div>
+                        <Slider
+                          min={SLIDER_CONFIGS.maxCommentsPerStory.min}
+                          max={SLIDER_CONFIGS.maxCommentsPerStory.unlimited}
+                          step={1}
+                          value={[settings.maxCommentsPerStory]}
+                          onValueChange={([v]) => {
+                            const next = { ...settings, maxCommentsPerStory: v };
+                            setSettings(next);
+                            saveSettings(next);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Export section */}
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Export format</Label>
                   <Select

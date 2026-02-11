@@ -1,5 +1,6 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from "bun:test";
-import { flattenComments, fetchComments, fetchCommentsForStories } from "./comments.ts";
+import { flattenComments, fetchComments, fetchCommentsForStories, filterComments } from "./comments.ts";
+import type { Comment } from "./types.ts";
 
 const originalFetch = globalThis.fetch;
 let mockFetch: ReturnType<typeof mock>;
@@ -154,6 +155,102 @@ describe("fetchComments", () => {
     const comments = await fetchComments("100");
 
     expect(comments).toEqual([]);
+  });
+});
+
+describe("filterComments", () => {
+  // A realistic flat comment list representing two top-level threads:
+  // - comment A (depth 0) -> B (depth 1) -> C (depth 2)
+  // - comment D (depth 0) -> E (depth 1)
+  // - comment F (depth 0)
+  const comments: Comment[] = [
+    { id: 1, author: "a", text: "top A", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
+    { id: 2, author: "b", text: "reply B", createdAt: "2024-01-01T00:01:00Z", depth: 1 },
+    { id: 3, author: "c", text: "reply C", createdAt: "2024-01-01T00:02:00Z", depth: 2 },
+    { id: 4, author: "d", text: "top D", createdAt: "2024-01-01T00:03:00Z", depth: 0 },
+    { id: 5, author: "e", text: "reply E", createdAt: "2024-01-01T00:04:00Z", depth: 1 },
+    { id: 6, author: "f", text: "top F", createdAt: "2024-01-01T00:05:00Z", depth: 0 },
+  ];
+
+  const unlimited = { maxCommentDepth: -1, maxCommentsPerStory: -1, maxTopLevelComments: -1 };
+
+  test("returns all comments when all options are unlimited", () => {
+    const result = filterComments(comments, unlimited);
+    expect(result).toEqual(comments);
+  });
+
+  test("limits top-level comments and keeps their sub-threads", () => {
+    const result = filterComments(comments, { ...unlimited, maxTopLevelComments: 2 });
+
+    // Should include threads A and D, but not F
+    expect(result).toEqual([
+      comments[0], // A (depth 0)
+      comments[1], // B (depth 1)
+      comments[2], // C (depth 2)
+      comments[3], // D (depth 0)
+      comments[4], // E (depth 1)
+    ]);
+  });
+
+  test("limits top-level comments to 0 returns empty", () => {
+    const result = filterComments(comments, { ...unlimited, maxTopLevelComments: 0 });
+    expect(result).toEqual([]);
+  });
+
+  test("limits max comment depth", () => {
+    const result = filterComments(comments, { ...unlimited, maxCommentDepth: 0 });
+
+    expect(result).toEqual([
+      comments[0], // A (depth 0)
+      comments[3], // D (depth 0)
+      comments[5], // F (depth 0)
+    ]);
+  });
+
+  test("limits max comment depth to 1", () => {
+    const result = filterComments(comments, { ...unlimited, maxCommentDepth: 1 });
+
+    // Keeps depth 0 and 1, removes depth 2
+    expect(result).toEqual([
+      comments[0], // A (depth 0)
+      comments[1], // B (depth 1)
+      comments[3], // D (depth 0)
+      comments[4], // E (depth 1)
+      comments[5], // F (depth 0)
+    ]);
+  });
+
+  test("limits max comments per story", () => {
+    const result = filterComments(comments, { ...unlimited, maxCommentsPerStory: 3 });
+
+    expect(result).toEqual([
+      comments[0], // A
+      comments[1], // B
+      comments[2], // C
+    ]);
+  });
+
+  test("combines all filters", () => {
+    // Top-level limit 2 (threads A and D), depth limit 1, total cap 3
+    const result = filterComments(comments, {
+      maxTopLevelComments: 2,
+      maxCommentDepth: 1,
+      maxCommentsPerStory: 3,
+    });
+
+    // After top-level limit: A, B, C, D, E
+    // After depth limit (<=1): A, B, D, E
+    // After total cap (3): A, B, D
+    expect(result).toEqual([
+      comments[0], // A (depth 0)
+      comments[1], // B (depth 1)
+      comments[3], // D (depth 0)
+    ]);
+  });
+
+  test("handles empty comment list", () => {
+    const result = filterComments([], unlimited);
+    expect(result).toEqual([]);
   });
 });
 

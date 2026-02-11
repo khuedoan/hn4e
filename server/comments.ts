@@ -1,4 +1,4 @@
-import type { Comment } from "./types.ts";
+import type { Comment, CommentFilterOptions } from "./types.ts";
 
 const ALGOLIA_API = "https://hn.algolia.com/api/v1";
 
@@ -66,4 +66,47 @@ export async function fetchCommentsForStories(
 
   await Promise.all(workers);
   return results;
+}
+
+// Filter a flat comment list by depth, top-level count, and total count.
+// The flat list is in pre-order (tree traversal) so a depth-0 comment is
+// followed by all its descendants before the next depth-0 comment.
+export function filterComments(
+  comments: Comment[],
+  options: CommentFilterOptions,
+): Comment[] {
+  const { maxCommentDepth, maxTopLevelComments, maxCommentsPerStory } = options;
+
+  let filtered = comments;
+
+  // 1. Limit number of top-level comments (and their sub-threads).
+  if (maxTopLevelComments >= 0) {
+    const result: Comment[] = [];
+    let topLevelSeen = 0;
+    let including = true;
+
+    for (const c of filtered) {
+      if (c.depth === 0) {
+        topLevelSeen++;
+        including = topLevelSeen <= maxTopLevelComments;
+      }
+      if (including) {
+        result.push(c);
+      }
+    }
+
+    filtered = result;
+  }
+
+  // 2. Remove comments deeper than the max depth.
+  if (maxCommentDepth >= 0) {
+    filtered = filtered.filter((c) => c.depth <= maxCommentDepth);
+  }
+
+  // 3. Truncate to a total cap per story.
+  if (maxCommentsPerStory >= 0) {
+    filtered = filtered.slice(0, maxCommentsPerStory);
+  }
+
+  return filtered;
 }
