@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import JSZip from "jszip";
-import { generateEpub, renderComments } from "./epub.ts";
+import { buildChapters, generateEpub, renderComments } from "./epub.ts";
 import type { Comment, ExtractedArticle } from "./types.ts";
 
 function makeArticle(overrides: Partial<ExtractedArticle> = {}): ExtractedArticle {
@@ -56,18 +56,17 @@ describe("generateEpub", () => {
     expect(chapter).toContain("Test Story (100 points)");
   });
 
-  test("chapter metadata links comments to HN discussion", async () => {
-    const articles = [makeArticle()];
+  test("comments chapter includes QR code linking to HN discussion", async () => {
+    const articles = [makeArticle({
+      comments: [{ id: 1, author: "someone", text: "Great post!", depth: 0, createdAt: new Date().toISOString() }],
+    })];
     const buffer = await generateEpub(articles);
     const files = await extractEpubContent(buffer);
 
-    const chapter = Object.values(files).find((c) => c.includes("Article content."));
-    expect(chapter).toBeDefined();
-    // "X comments" should link to HN
-    expect(chapter).toContain('href="https://news.ycombinator.com/item?id=1"');
-    expect(chapter).toContain("50 comments</a>");
-    // Should not include author name in metadata
-    expect(chapter).not.toContain("testuser");
+    const commentsChapter = Object.values(files).find((c) => c.includes("someone"));
+    expect(commentsChapter).toBeDefined();
+    // QR code image should be present (epub-gen-memory extracts data URLs into image files)
+    expect(commentsChapter).toContain('alt="QR code to HN discussion"');
   });
 
   test("includes fallback content for failed extractions", async () => {
@@ -150,13 +149,14 @@ describe("generateEpub", () => {
     expect(tocXhtml).toContain("1 Comments");
   });
 
-  test("omits comments chapter when no comments", async () => {
+  test("includes comments chapter with QR code even when no comments", async () => {
     const articles = [makeArticle({ comments: [] })];
     const buffer = await generateEpub(articles);
     const files = await extractEpubContent(buffer);
 
     const commentsChapter = Object.entries(files).find(([name]) => name.includes("comments_"));
-    expect(commentsChapter).toBeUndefined();
+    expect(commentsChapter).toBeDefined();
+    expect(commentsChapter![1]).toContain('alt="QR code to HN discussion"');
   });
 });
 
@@ -222,5 +222,39 @@ describe("renderComments", () => {
     const html = renderComments(comments);
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("buildChapters", () => {
+  test("comments chapter starts with a QR code image", async () => {
+    const article = makeArticle({
+      comments: [{ id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 }],
+    });
+    const chapters = await buildChapters(article, 0);
+    const commentsChapter = chapters.find((ch) => ch.title?.includes("Comments"));
+    expect(commentsChapter).toBeDefined();
+    expect(commentsChapter!.content).toContain("data:image/png;base64,");
+    expect(commentsChapter!.content).toContain('alt="QR code to HN discussion"');
+  });
+
+  test("QR code appears before comments content", async () => {
+    const article = makeArticle({
+      comments: [{ id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 }],
+    });
+    const chapters = await buildChapters(article, 0);
+    const content = chapters.find((ch) => ch.title?.includes("Comments"))!.content;
+    const qrIndex = content.indexOf("data:image/png;base64,");
+    const commentIndex = content.indexOf("alice");
+    expect(qrIndex).toBeGreaterThan(-1);
+    expect(commentIndex).toBeGreaterThan(qrIndex);
+  });
+
+  test("still includes QR code when there are no comments", async () => {
+    const article = makeArticle({ comments: [] });
+    const chapters = await buildChapters(article, 0);
+    const commentsChapter = chapters.find((ch) => ch.title?.includes("Comments"));
+    expect(commentsChapter).toBeDefined();
+    expect(commentsChapter!.content).toContain("data:image/png;base64,");
+    expect(commentsChapter!.content).toContain('alt="QR code to HN discussion"');
   });
 });

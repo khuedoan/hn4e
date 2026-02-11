@@ -220,7 +220,7 @@ app.get("/api/preview", async (c) => {
           article.comments = filterComments(raw, commentFilter);
         }
 
-        const chapters = buildChapters(article, i);
+        const chapters = await buildChapters(article, i);
 
         await stream.writeSSE({
           event: "article",
