@@ -12,6 +12,7 @@ packaged into EPUB files optimized for E Ink readers.
 - Extract full article content from linked URLs
 - Include threaded comments (optional)
 - Download as EPUB for offline reading on e-readers
+- Fast as fuck
 
 Generated output:
 

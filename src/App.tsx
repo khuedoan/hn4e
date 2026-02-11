@@ -17,7 +17,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Github, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
+import { ArrowLeft, Eye, Github, List, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
 
 const SETTINGS_KEY = "hn4e-settings";
 
@@ -116,7 +116,13 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [downloadToken, setDownloadToken] = useState<string | null>(null);
 
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewArticles, setPreviewArticles] = useState<{ title: string; chapters: { title: string; html: string }[] }[]>([]);
+  const [previewProgress, setPreviewProgress] = useState<GenerationProgress | null>(null);
+  const previewEventSourceRef = useRef<EventSource | null>(null);
+
   const downloadRef = useRef<HTMLAnchorElement>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
 
   const fetchStories = useCallback(async () => {
     setIsFetching(true);
@@ -211,6 +217,60 @@ function App() {
     };
   }, [selectedIds, settings]);
 
+  const togglePreview = useCallback(() => {
+    if (isPreviewing) {
+      // Close preview, abort any in-flight request
+      previewEventSourceRef.current?.close();
+      previewEventSourceRef.current = null;
+      setIsPreviewing(false);
+      return;
+    }
+
+    if (selectedIds.size === 0) return;
+
+    setIsPreviewing(true);
+    setPreviewArticles([]);
+    setPreviewProgress(null);
+
+    const ids = Array.from(selectedIds).join(",");
+    const params = new URLSearchParams({ ids });
+    if (!settings.includeComments) {
+      params.set("comments", "false");
+    } else {
+      params.set("maxCommentDepth", sliderToParam(settings.maxCommentDepth, SLIDER_CONFIGS.maxCommentDepth.unlimited));
+      params.set("maxTopLevelComments", sliderToParam(settings.maxTopLevelComments, SLIDER_CONFIGS.maxTopLevelComments.unlimited));
+      params.set("maxCommentsPerStory", sliderToParam(settings.maxCommentsPerStory, SLIDER_CONFIGS.maxCommentsPerStory.unlimited));
+    }
+    const eventSource = new EventSource(`/api/preview?${params}`);
+    previewEventSourceRef.current = eventSource;
+
+    eventSource.addEventListener("article", (event) => {
+      const data = JSON.parse(event.data);
+      setPreviewArticles((prev) => [...prev, { title: data.title, chapters: data.chapters }]);
+    });
+
+    eventSource.addEventListener("progress", (event) => {
+      const data: GenerationProgress = JSON.parse(event.data);
+      setPreviewProgress(data);
+
+      if (data.phase === "done" || data.phase === "error") {
+        eventSource.close();
+        previewEventSourceRef.current = null;
+      }
+    });
+
+    eventSource.onerror = () => {
+      setPreviewProgress({
+        phase: "error",
+        current: 0,
+        total: 0,
+        message: "Connection to server lost.",
+      });
+      eventSource.close();
+      previewEventSourceRef.current = null;
+    };
+  }, [isPreviewing, selectedIds, settings]);
+
   // Extracting phase reports incremental progress, generating phase has no
   // granular progress so we hold at 90% until done.
   const progressPercent = progress
@@ -293,63 +353,134 @@ function App() {
         <p className="text-sm text-destructive">{fetchError}</p>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border">
-        <label
-          className="flex items-center gap-3 border-b px-3 py-2 hover:bg-muted cursor-pointer sticky top-0 bg-background z-10"
-        >
-          <Checkbox
-            checked={selectedIds.size === stories.length && stories.length > 0 ? true : selectedIds.size > 0 ? "indeterminate" : false}
-            onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
-            disabled={isGenerating || isFetching}
-          />
-          <span className="text-sm text-muted-foreground">
-            Select all
-          </span>
-        </label>
-        {isFetching && stories.length === 0 ? (
-          <div className="flex-1">
-            {Array.from({ length: 20 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0">
-                <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
-                <div className="flex-1 min-w-0 space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-3 w-12" />
-                    <Skeleton className="h-3 w-12" />
-                  </div>
-                </div>
+      {isPreviewing ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border" ref={previewScrollRef}>
+          <div className="flex items-center gap-3 border-b px-3 py-2 sticky top-0 bg-background z-10">
+            <Button variant="ghost" size="icon-sm" className="-my-1" onClick={togglePreview}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            {previewProgress && previewProgress.phase !== "done" && previewProgress.phase !== "error" && (
+              <span className="text-xs text-muted-foreground">
+                {previewProgress.current}/{previewProgress.total}
+              </span>
+            )}
+            {previewArticles.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" className="-my-1 ml-auto" title="Table of contents">
+                    <List className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 max-h-80 overflow-y-auto p-2">
+                  <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Table of contents</p>
+                  {previewArticles.map((article, i) => (
+                    <div key={i}>
+                      <button
+                        className="w-full text-left rounded px-2 py-1.5 text-sm hover:bg-muted truncate"
+                        onClick={() => {
+                          const el = document.getElementById(`preview-article-${i}-0`);
+                          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }}
+                      >
+                        {article.chapters[0]?.title ?? article.title}
+                      </button>
+                      {article.chapters.slice(1).map((ch, j) => (
+                        <button
+                          key={j}
+                          className="w-full text-left rounded pl-6 pr-2 py-1 text-xs text-muted-foreground hover:bg-muted truncate"
+                          onClick={() => {
+                            const el = document.getElementById(`preview-article-${i}-${j + 1}`);
+                            el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }}
+                        >
+                          {ch.title}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+          <div className="epub-preview p-4">
+            {previewArticles.map((article, i) => (
+              <div key={i} className="mb-8 pb-8 border-b last:border-b-0">
+                {article.chapters.map((ch, j) => (
+                  <section
+                    key={j}
+                    id={`preview-article-${i}-${j}`}
+                    className={`scroll-mt-12 ${j > 0 ? "mt-6" : ""}`}
+                  >
+                    <h2 className="font-sans text-lg font-semibold mb-2">{ch.title}</h2>
+                    <div dangerouslySetInnerHTML={{ __html: ch.html }} />
+                  </section>
+                ))}
               </div>
             ))}
+            {previewProgress?.phase === "error" && (
+              <p className="text-sm text-destructive">{previewProgress.message}</p>
+            )}
           </div>
-        ) : stories.length > 0 ? (
-          stories.map((story) => (
-            <label
-              key={story.id}
-              className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
-            >
-              <Checkbox
-                checked={selectedIds.has(story.id)}
-                onCheckedChange={() => toggleStory(story.id)}
-                disabled={isGenerating}
-                className="mt-0.5"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-snug">{story.title}</p>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <ThumbsUp className="size-3" />
-                    {story.points}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MessageSquare className="size-3" />
-                    {story.commentCount}
-                  </span>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border">
+          <label
+            className="flex items-center gap-3 border-b px-3 py-2 hover:bg-muted cursor-pointer sticky top-0 bg-background z-10"
+          >
+            <Checkbox
+              checked={selectedIds.size === stories.length && stories.length > 0 ? true : selectedIds.size > 0 ? "indeterminate" : false}
+              onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
+              disabled={isGenerating || isFetching}
+            />
+            <span className="text-sm text-muted-foreground">
+              Select all
+            </span>
+          </label>
+          {isFetching && stories.length === 0 ? (
+            <div className="flex-1">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0">
+                  <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </label>
-          ))
-        ) : null}
-      </div>
+              ))}
+            </div>
+          ) : stories.length > 0 ? (
+            stories.map((story) => (
+              <label
+                key={story.id}
+                className="flex items-start gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 cursor-pointer"
+              >
+                <Checkbox
+                  checked={selectedIds.has(story.id)}
+                  onCheckedChange={() => toggleStory(story.id)}
+                  disabled={isGenerating}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium leading-snug">{story.title}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <ThumbsUp className="size-3" />
+                      {story.points}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MessageSquare className="size-3" />
+                      {story.commentCount}
+                    </span>
+                  </div>
+                </div>
+              </label>
+            ))
+          ) : null}
+        </div>
+      )}
 
       <div className="shrink-0 space-y-2">
         <div className="flex gap-2">
@@ -468,6 +599,15 @@ function App() {
             ) : (
               `Generate EPUB (${selectedIds.size} items)`
             )}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={togglePreview}
+            disabled={selectedIds.size === 0 || isGenerating}
+            title={isPreviewing ? "Close preview" : "Preview"}
+          >
+            <Eye className={`size-4 ${isPreviewing ? "text-primary" : ""}`} />
           </Button>
         </div>
 

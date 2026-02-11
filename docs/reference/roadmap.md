@@ -32,7 +32,8 @@ UX and performance improvements.
 
 ## v0.4.0
 
-- [ ] feat: comment filtering
+- [x] feat: comment filtering
+- [x] feat: preview before export
 - [ ] feat: add QR code to Hacker News discussion
 
 ## Backlog

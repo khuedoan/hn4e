@@ -10,7 +10,7 @@ const TOC_NCX = readFileSync(join(TEMPLATES_DIR, "toc.ncx.ejs"), "utf-8");
 const TOC_XHTML = readFileSync(join(TEMPLATES_DIR, "toc.xhtml.ejs"), "utf-8");
 const EPUB_CSS = readFileSync(join(TEMPLATES_DIR, "epub.css"), "utf-8");
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -125,7 +125,7 @@ export function renderComments(comments: Comment[]): string {
   return lines.join("\n");
 }
 
-function buildChapters(article: ExtractedArticle, index: number): Chapter[] {
+export function buildChapters(article: ExtractedArticle, index: number): Chapter[] {
   const { story, content, extracted, comments } = article;
   const hnUrl = `https://news.ycombinator.com/item?id=${story.id}`;
   const meta = `<p><small>

@@ -3,8 +3,8 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { fetchPopularStories } from "./hn.ts";
 import { flattenComments, filterComments } from "./comments.ts";
-import { extractArticles } from "./extract.ts";
-import { generateEpub } from "./epub.ts";
+import { extractArticle, extractArticles } from "./extract.ts";
+import { generateEpub, buildChapters } from "./epub.ts";
 import { Cache, ONE_HOUR } from "./cache.ts";
 import type { Comment, CommentFilterOptions, Story, GenerationProgress } from "./types.ts";
 
@@ -172,6 +172,93 @@ async function fetchStoriesByIds(ids: string[]): Promise<StoryWithComments[]> {
 
   return results;
 }
+
+// SSE endpoint that streams article HTML previews as they are extracted.
+// Returns each article's rendered HTML content incrementally, styled to match
+// the EPUB output, without generating an actual EPUB file.
+app.get("/api/preview", async (c) => {
+  const ids = c.req.query("ids")?.split(",").filter(Boolean) ?? [];
+  if (ids.length === 0) {
+    return c.json({ error: "No story IDs provided" }, 400);
+  }
+
+  const includeComments = c.req.query("comments") !== "false";
+
+  const commentFilter: CommentFilterOptions = {
+    maxCommentDepth: parseInt(c.req.query("maxCommentDepth") ?? "-1") || -1,
+    maxCommentsPerStory: parseInt(c.req.query("maxCommentsPerStory") ?? "-1") || -1,
+    maxTopLevelComments: parseInt(c.req.query("maxTopLevelComments") ?? "-1") || -1,
+  };
+
+  const storiesWithComments = await fetchStoriesByIds(ids);
+  const stories = storiesWithComments.map((s) => s.story);
+  const commentsByStoryId = new Map(storiesWithComments.map((s) => [s.story.id, s.comments]));
+
+  return streamSSE(c, async (stream) => {
+    function sendProgress(progress: GenerationProgress) {
+      return stream.writeSSE({
+        event: "progress",
+        data: JSON.stringify(progress),
+      });
+    }
+
+    try {
+      await sendProgress({
+        phase: "extracting",
+        current: 0,
+        total: stories.length,
+        message: "Extracting article content...",
+      });
+
+      for (let i = 0; i < stories.length; i++) {
+        const article = await extractArticle(stories[i]);
+
+        if (!includeComments) {
+          article.comments = [];
+        } else {
+          const raw = commentsByStoryId.get(article.story.id) ?? [];
+          article.comments = filterComments(raw, commentFilter);
+        }
+
+        const chapters = buildChapters(article, i);
+
+        await stream.writeSSE({
+          event: "article",
+          data: JSON.stringify({
+            storyId: article.story.id,
+            title: article.story.title,
+            chapters: chapters.map((ch) => ({
+              title: ch.title ?? "",
+              html: ch.content,
+            })),
+          }),
+        });
+
+        await sendProgress({
+          phase: "extracting",
+          current: i + 1,
+          total: stories.length,
+          message: `Extracted ${i + 1}/${stories.length} articles...`,
+        });
+      }
+
+      await sendProgress({
+        phase: "done",
+        current: stories.length,
+        total: stories.length,
+        message: "Preview ready.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      await sendProgress({
+        phase: "error",
+        current: 0,
+        total: 0,
+        message: `Preview failed: ${message}`,
+      });
+    }
+  });
+});
 
 app.get("/api/download/:token", (c) => {
   const token = c.req.param("token");

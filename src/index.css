@@ -122,3 +122,50 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Preview panel: mirrors the EPUB stylesheet (server/templates/epub.css) */
+.epub-preview {
+  font-family: serif;
+  line-height: 1.6;
+}
+.epub-preview p {
+  margin: 1em 0;
+}
+.epub-preview h1,
+.epub-preview h2,
+.epub-preview h3 {
+  font-family: sans-serif;
+}
+.epub-preview h2 {
+  font-size: 1.25em;
+  margin-top: 0;
+}
+.epub-preview a {
+  color: #1a0dab;
+}
+.epub-preview small {
+  color: #666;
+}
+.epub-preview hr {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 1em 0;
+}
+.epub-preview img {
+  max-width: 100%;
+  height: auto;
+}
+.epub-preview pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: #f5f5f5;
+  padding: 0.5em;
+}
+.epub-preview code {
+  font-size: 0.9em;
+}
+.epub-preview blockquote {
+  margin-left: 1em;
+  padding-left: 1em;
+  border-left: 3px solid #ccc;
+}
