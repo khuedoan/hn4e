@@ -53,7 +53,7 @@ describe("generateEpub", () => {
 
     const chapter = Object.values(files).find((c) => c.includes("Article content."));
     expect(chapter).toBeDefined();
-    expect(chapter).toContain("Test Story (100 points)");
+    expect(chapter).toContain("Test Story");
   });
 
   test("comments chapter includes QR code linking to HN discussion", async () => {
@@ -138,15 +138,15 @@ describe("generateEpub", () => {
     const tocXhtml = await zip.file("OEBPS/toc.xhtml")!.async("string");
 
     // NCX should have nested navPoint for comments under the story navPoint
-    expect(tocNcx).toContain("1 Comments");
+    expect(tocNcx).toContain("100 points, 50 comments");
     // The comments navPoint should be nested inside the story navPoint
-    const storyNavPoint = tocNcx.indexOf("Test Story (100 points)");
-    const commentsNavPoint = tocNcx.indexOf("1 Comments");
+    const storyNavPoint = tocNcx.indexOf("Test Story");
+    const commentsNavPoint = tocNcx.indexOf("100 points, 50 comments");
     expect(storyNavPoint).toBeGreaterThan(-1);
     expect(commentsNavPoint).toBeGreaterThan(storyNavPoint);
 
     // XHTML TOC should have nested list for comments
-    expect(tocXhtml).toContain("1 Comments");
+    expect(tocXhtml).toContain("100 points, 50 comments");
   });
 
   test("includes comments chapter with QR code even when no comments", async () => {
@@ -174,17 +174,16 @@ describe("renderComments", () => {
     expect(html).toContain("<p>Hello</p>");
   });
 
-  test("indents nested comments with nesting wrappers", () => {
+  test("indents nested comments with nested lists", () => {
     const comments: Comment[] = [
       { id: 1, author: "alice", text: "<p>Top</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 },
       { id: 2, author: "bob", text: "<p>Reply</p>", createdAt: "2024-01-01T00:01:00Z", depth: 1 },
       { id: 3, author: "carol", text: "<p>Deep</p>", createdAt: "2024-01-01T00:02:00Z", depth: 2 },
     ];
     const html = renderComments(comments);
-    // Each nesting level opens a wrapper div with margin-left and border-left
-    const wrapperCount = (html.match(/margin-left: 0\.5em; border-left: 2px solid #ccc/g) || []).length;
-    expect(wrapperCount).toBe(2); // one for depth 1, one for depth 2
-    // Top-level comment has no nesting wrapper
+    // Each nesting level opens a child <ul>
+    const nestedUlCount = (html.match(/<ul>/g) || []).length;
+    expect(nestedUlCount).toBe(2); // one for depth 1, one for depth 2
     expect(html).toContain("alice");
     expect(html).toContain("bob");
     expect(html).toContain("carol");
@@ -195,9 +194,9 @@ describe("renderComments", () => {
       { id: 1, author: "deep", text: "<p>Very deep</p>", createdAt: "2024-01-01T00:00:00Z", depth: 10 },
     ];
     const html = renderComments(comments);
-    // Should cap at depth 5, meaning 5 nesting wrapper divs
-    const wrapperCount = (html.match(/margin-left: 0\.5em; border-left: 2px solid #ccc/g) || []).length;
-    expect(wrapperCount).toBe(5);
+    // Should cap at depth 5, meaning 5 nested <ul> elements
+    const nestedUlCount = (html.match(/<ul>/g) || []).length;
+    expect(nestedUlCount).toBe(5);
   });
 
   test("closes nesting wrappers when depth decreases", () => {
@@ -231,7 +230,7 @@ describe("buildChapters", () => {
       comments: [{ id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 }],
     });
     const chapters = await buildChapters(article, 0);
-    const commentsChapter = chapters.find((ch) => ch.title?.includes("Comments"));
+    const commentsChapter = chapters.find((ch) => ch.title?.includes("comments"));
     expect(commentsChapter).toBeDefined();
     expect(commentsChapter!.content).toContain("data:image/png;base64,");
     expect(commentsChapter!.content).toContain('alt="QR code to HN discussion"');
@@ -242,7 +241,7 @@ describe("buildChapters", () => {
       comments: [{ id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 }],
     });
     const chapters = await buildChapters(article, 0);
-    const content = chapters.find((ch) => ch.title?.includes("Comments"))!.content;
+    const content = chapters.find((ch) => ch.title?.includes("comments"))!.content;
     const qrIndex = content.indexOf("data:image/png;base64,");
     const commentIndex = content.indexOf("alice");
     expect(qrIndex).toBeGreaterThan(-1);
@@ -252,7 +251,7 @@ describe("buildChapters", () => {
   test("still includes QR code when there are no comments", async () => {
     const article = makeArticle({ comments: [] });
     const chapters = await buildChapters(article, 0);
-    const commentsChapter = chapters.find((ch) => ch.title?.includes("Comments"));
+    const commentsChapter = chapters.find((ch) => ch.title?.includes("comments"));
     expect(commentsChapter).toBeDefined();
     expect(commentsChapter!.content).toContain("data:image/png;base64,");
     expect(commentsChapter!.content).toContain('alt="QR code to HN discussion"');
@@ -263,7 +262,7 @@ describe("buildChapters", () => {
       comments: [{ id: 1, author: "alice", text: "<p>Hello</p>", createdAt: "2024-01-01T00:00:00Z", depth: 0 }],
     });
     const chapters = await buildChapters(article, 0, { includeQrCode: false });
-    const commentsChapter = chapters.find((ch) => ch.title?.includes("Comments"));
+    const commentsChapter = chapters.find((ch) => ch.title?.includes("comments"));
     expect(commentsChapter).toBeDefined();
     expect(commentsChapter!.content).not.toContain("QR code");
     expect(commentsChapter!.content).toContain("alice");

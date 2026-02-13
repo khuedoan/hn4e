@@ -87,41 +87,52 @@ class CachedEPub extends EPub {
 export function renderComments(comments: Comment[]): string {
   if (comments.length === 0) return "";
 
-  // Build nested HTML so that each depth level's border-left wraps all its
-  // children, keeping the indent visual continuous throughout the thread.
+  // Use nested <ul>/<li> so that thread structure degrades gracefully on
+  // e-readers that strip CSS and inline styles (e.g. older Boox, Xteinak).
+  // HTML list nesting is preserved by every rendering engine regardless of
+  // stylesheet support.
   const lines: string[] = [];
   let currentDepth = 0;
+
+  // Open the root list
+  lines.push('<ul class="comments">');
 
   for (const c of comments) {
     const indent = Math.min(c.depth, MAX_INDENT_DEPTH);
 
     // Close deeper nesting levels when moving back up
     while (currentDepth > indent) {
-      lines.push("</div>");
+      lines.push("</li></ul>");
       currentDepth--;
+    }
+
+    // Close previous sibling <li> at the same level (except before the first item)
+    if (currentDepth === indent && lines.length > 1 && lines[lines.length - 1] !== '<ul class="comments">') {
+      lines.push("</li>");
     }
 
     // Open new nesting levels when going deeper
     while (currentDepth < indent) {
-      lines.push(
-        `<div style="margin-left: 0.5em; border-left: 2px solid #ccc; padding-left: 0.5em;">`
-      );
+      lines.push("<ul>");
       currentDepth++;
     }
 
     lines.push(
-      `<div style="margin-bottom: 0.8em;">`,
-      `  <p><small><strong>${escapeHtml(c.author)}</strong></small></p>`,
-      `  ${c.text}`,
-      `</div>`
+      `<li>`,
+      `  <strong>${escapeHtml(c.author)}:</strong>`,
+      `  ${c.text}`
     );
   }
 
-  // Close any remaining open nesting divs
+  // Close any remaining open items and lists
+  // Close the final <li> at currentDepth
+  lines.push("</li>");
   while (currentDepth > 0) {
-    lines.push("</div>");
+    lines.push("</ul></li>");
     currentDepth--;
   }
+  // Close the root list
+  lines.push("</ul>");
 
   return lines.join("\n");
 }
@@ -146,7 +157,7 @@ export async function buildChapters(article: ExtractedArticle, index: number, op
 
   const chapters: Chapter[] = [
     {
-      title: `${story.title} (${story.points} points)`,
+      title: story.title,
       content: body,
       filename: `story_${index + 1}.xhtml`,
     },
@@ -160,7 +171,7 @@ export async function buildChapters(article: ExtractedArticle, index: number, op
   }
 
   chapters.push({
-    title: `${comments.length} Comments`,
+    title: `${story.points} points, ${story.commentCount} comments`,
     content: qrHtml + renderComments(comments),
     filename: `comments_${index + 1}.xhtml`,
   });

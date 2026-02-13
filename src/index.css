@@ -169,3 +169,17 @@
   padding-left: 1em;
   border-left: 3px solid #ccc;
 }
+.epub-preview ul.comments,
+.epub-preview ul.comments ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.epub-preview ul.comments ul {
+  padding-left: 0.5em;
+  border-left: 2px solid #ccc;
+}
+.epub-preview ul.comments li {
+  margin-bottom: 0.8em;
+}
+

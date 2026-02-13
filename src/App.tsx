@@ -17,7 +17,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Eye, Github, List, Loader2, MessageSquare, RefreshCw, Settings, ThumbsUp } from "lucide-react";
+import { ArrowLeft, Eye, Github, List, Loader2, MessageSquare, RefreshCw, RemoveFormatting, Settings, ThumbsUp } from "lucide-react";
 
 const SETTINGS_KEY = "hn4e-settings";
 
@@ -124,7 +124,9 @@ function App() {
   const previewEventSourceRef = useRef<EventSource | null>(null);
 
   const downloadRef = useRef<HTMLAnchorElement>(null);
+  const [ignoreStyles, setIgnoreStyles] = useState(false);
   const previewScrollRef = useRef<HTMLDivElement>(null);
+  const plainIframeRef = useRef<HTMLIFrameElement>(null);
 
   const fetchStories = useCallback(async () => {
     setIsFetching(true);
@@ -372,63 +374,97 @@ function App() {
                 {previewProgress.current}/{previewProgress.total}
               </span>
             )}
-            {previewArticles.length > 0 && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="-my-1 ml-auto" title="Table of contents">
-                    <List className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-72 max-h-80 overflow-y-auto p-2">
-                  <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Table of contents</p>
-                  {previewArticles.map((article, i) => (
-                    <div key={i}>
+            <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={`-my-1 ${ignoreStyles ? "text-primary" : ""}`}
+              onClick={() => setIgnoreStyles((v) => !v)}
+              title="Ignore builtin styles (emulate e-reader override)"
+            >
+              <RemoveFormatting className="size-4" />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon-sm" className="-my-1" title="Table of contents" disabled={previewArticles.length === 0}>
+                  <List className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 max-h-80 overflow-y-auto p-2">
+                <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Table of contents</p>
+                {previewArticles.map((article, i) => (
+                  <div key={i}>
+                    <button
+                      className="w-full text-left rounded px-2 py-1.5 text-sm hover:bg-muted truncate"
+                      onClick={() => {
+                        const doc = ignoreStyles ? plainIframeRef.current?.contentDocument : document;
+                        const el = doc?.getElementById(`preview-article-${i}-0`);
+                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                    >
+                      {article.chapters[0]?.title ?? article.title}
+                    </button>
+                    {article.chapters.slice(1).map((ch, j) => (
                       <button
-                        className="w-full text-left rounded px-2 py-1.5 text-sm hover:bg-muted truncate"
+                        key={j}
+                        className="w-full text-left rounded pl-6 pr-2 py-1 text-xs text-muted-foreground hover:bg-muted truncate"
                         onClick={() => {
-                          const el = document.getElementById(`preview-article-${i}-0`);
+                          const doc = ignoreStyles ? plainIframeRef.current?.contentDocument : document;
+                          const el = doc?.getElementById(`preview-article-${i}-${j + 1}`);
                           el?.scrollIntoView({ behavior: "smooth", block: "start" });
                         }}
                       >
-                        {article.chapters[0]?.title ?? article.title}
+                        {ch.title}
                       </button>
-                      {article.chapters.slice(1).map((ch, j) => (
-                        <button
-                          key={j}
-                          className="w-full text-left rounded pl-6 pr-2 py-1 text-xs text-muted-foreground hover:bg-muted truncate"
-                          onClick={() => {
-                            const el = document.getElementById(`preview-article-${i}-${j + 1}`);
-                            el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                          }}
-                        >
-                          {ch.title}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-          <div className="epub-preview p-4">
-            {previewArticles.map((article, i) => (
-              <div key={i} className="mb-8 pb-8 border-b last:border-b-0">
-                {article.chapters.map((ch, j) => (
-                  <section
-                    key={j}
-                    id={`preview-article-${i}-${j}`}
-                    className={`scroll-mt-12 ${j > 0 ? "mt-6" : ""}`}
-                  >
-                    <h2 className="font-sans text-lg font-semibold mb-2">{ch.title}</h2>
-                    <div dangerouslySetInnerHTML={{ __html: ch.html }} />
-                  </section>
+                    ))}
+                  </div>
                 ))}
-              </div>
-            ))}
-            {previewProgress?.phase === "error" && (
-              <p className="text-sm text-destructive">{previewProgress.message}</p>
-            )}
+              </PopoverContent>
+            </Popover>
+            </div>
           </div>
+          {ignoreStyles ? (
+            <>
+              <iframe
+                ref={plainIframeRef}
+                className="w-full flex-1 border-0"
+                srcDoc={(() => {
+                  const body = previewArticles.map((article, i) =>
+                    article.chapters.map((ch, j) =>
+                      `<section id="preview-article-${i}-${j}"${j > 0 ? ' style="margin-top:1.5em"' : ""}>` +
+                      `<h2>${ch.title}</h2>` +
+                      ch.html +
+                      `</section>`
+                    ).join("")
+                  ).join("<hr/>");
+                  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="padding:1em">${body}</body></html>`;
+                })()}
+              />
+              {previewProgress?.phase === "error" && (
+                <p className="p-4 text-sm text-destructive">{previewProgress.message}</p>
+              )}
+            </>
+          ) : (
+            <div className="epub-preview p-4">
+              {previewArticles.map((article, i) => (
+                <div key={i} className="mb-8 pb-8 border-b last:border-b-0">
+                  {article.chapters.map((ch, j) => (
+                    <section
+                      key={j}
+                      id={`preview-article-${i}-${j}`}
+                      className={`scroll-mt-12 ${j > 0 ? "mt-6" : ""}`}
+                    >
+                      <h2 className="font-sans text-lg font-semibold mb-2">{ch.title}</h2>
+                      <div dangerouslySetInnerHTML={{ __html: ch.html }} />
+                    </section>
+                  ))}
+                </div>
+              ))}
+              {previewProgress?.phase === "error" && (
+                <p className="text-sm text-destructive">{previewProgress.message}</p>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border">
