@@ -4,6 +4,20 @@ The backend exposes an HTTP API for archive generation.
 
 ## Endpoints
 
+### GET /api/stories
+
+Returns stories for the selection list.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `feed` | `top` or `best` | `top` | HN Firebase feed to read from |
+| `count` | integer | 100 | Number of stories to return; allowed values are 50, 100, 150, 200 |
+| `timeRange` | integer | 86400 | Maximum story age in seconds; allowed values are 86400, 172800, 604800, 2592000, 31536000 |
+
+Invalid values fall back to defaults.
+
 ### GET /api/generate
 
 Starts archive generation and streams progress via Server-Sent Events (SSE).
@@ -12,7 +26,12 @@ Starts archive generation and streams progress via Server-Sent Events (SSE).
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `count` | integer | 100 | Number of stories to include (1-300) |
+| `ids` | comma-separated story IDs | required | Selected HN story IDs |
+| `comments` | boolean | true | Set to `false` to omit comments |
+| `maxCommentDepth` | integer | -1 | Maximum comment nesting depth; -1 means unlimited |
+| `maxTopLevelComments` | integer | -1 | Maximum top-level comment threads per story; -1 means unlimited |
+| `maxCommentsPerStory` | integer | -1 | Maximum total comments per story; -1 means unlimited |
+| `qrCode` | boolean | true | Set to `false` to omit discussion QR codes |
 
 **SSE events:**
 
@@ -31,12 +50,18 @@ Each event has `event: progress` and a JSON `data` payload:
 
 | Phase | Description |
 |---|---|
-| `fetching` | Querying HN Algolia API for popular stories |
-| `extracting` | Extracting article content from URLs |
-| `comments` | Fetching comment trees from HN |
+| `extracting` | Loading selected HN stories, fetching comment trees, and extracting article content from URLs |
 | `generating` | Building the EPUB file |
 | `done` | Generation complete; `message` contains the download token |
 | `error` | Generation failed; `message` contains the error description |
+
+### GET /api/preview
+
+Streams rendered article preview chapters via Server-Sent Events without generating an EPUB.
+
+It accepts the same query parameters as `GET /api/generate`.
+
+The endpoint emits `article` events with rendered chapter HTML and `progress` events with the same progress shape as generation.
 
 ### GET /api/download/:token
 

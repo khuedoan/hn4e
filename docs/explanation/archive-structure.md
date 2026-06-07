@@ -12,27 +12,39 @@ The archive structure is designed for two constraints:
 
 ## Book-level organization
 
-Every archive is a flat list of story chapters (one per story), each containing:
+Every archive is organized as one story chapter per selected HN story, followed by a nested comments chapter for that story.
 
-- A metadata block with the URL, points, and a link to the HN discussion.
+Story chapters contain:
+
+- A metadata block with the source URL.
 - The extracted article content (reader view), or a fallback message if extraction failed.
-- The full comment tree from the HN discussion, rendered with visual indentation for nesting.
+
+Comments chapters contain:
+
+- A QR code linking to the HN discussion, when enabled.
+- The selected comment tree from the HN discussion, rendered with visual indentation for nesting.
 
 ## Chapter navigation
 
-The EPUB table of contents lists one entry per story. Story titles in the TOC include point counts (e.g., "Show HN: Something (142 points)") so readers can gauge interest from the chapter list.
+The EPUB table of contents lists one entry per story. Each story entry nests a comments entry titled with the story's point and comment counts.
 
 ## Chapter title format
 
-Each story chapter title follows the format:
+Each story chapter uses the HN story title:
 
 ```
-{title} (X points)
+{title}
+```
+
+Each comments chapter follows the format:
+
+```
+{points} points, {commentCount} comments
 ```
 
 ## Comment rendering
 
-Comments appear after the article content within the same chapter, separated by a horizontal rule and a "N Comments" heading
+Comments appear in the nested comments chapter.
 
 ```
 N comments
@@ -53,4 +65,4 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 
 Nested replies are wrapped in containers with a left border and indent at each depth level. The border runs continuously through all children of a thread, so the visual nesting guide persists even across long comment chains. Indentation is capped at depth 5 to keep deeply nested threads readable on narrow e-reader screens.
 
-Deleted or dead comments (null author or text) are skipped, but their child replies are preserved at the original depth.
+Deleted, dead, missing, and non-comment items are skipped.

@@ -1,13 +1,13 @@
 # HN4E - Hacker News for E-readers
 
-HN4E generates offline archives of popular Hacker News articles,
+HN4E generates offline archives of Hacker News articles,
 packaged into EPUB files optimized for E Ink readers.
 
 ## Features
 
 ![Screenshot](https://github.com/user-attachments/assets/bdb181f0-5c41-4566-91fc-e8006fb1b6af)
 
-- Browse popular Hacker News stories with configurable time range and count
+- Browse Top or Best Hacker News stories with configurable age range and count
 - Select which stories to include in the archive
 - Extract full article content from linked URLs
 - Include threaded comments (optional)

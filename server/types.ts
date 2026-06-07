@@ -33,7 +33,7 @@ export interface CommentFilterOptions {
 }
 
 export interface GenerationProgress {
-  phase: "extracting" | "comments" | "generating" | "done" | "error";
+  phase: "extracting" | "generating" | "done" | "error";
   current: number;
   total: number;
   message: string;

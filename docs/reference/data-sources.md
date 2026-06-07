@@ -1,59 +1,64 @@
 # Data sources reference
 
-Hacker News for E-readers uses the HN Search API (powered by Algolia) for story discovery and comment trees, and fetches article content directly from source URLs.
+Hacker News for E-readers uses the official Hacker News Firebase API for story discovery, story metadata, and comment trees. Article content is fetched directly from source URLs.
 
-## HN Search API (Algolia)
+## Hacker News Firebase API
 
-Base URL: `https://hn.algolia.com/api/v1`
+Base URL: `https://hacker-news.firebaseio.com/v0`
 
 ### Story discovery
 
-**Popular stories (last 24 hours):**
+Stories are discovered from HN's native ranked feeds:
 
 ```
-GET /search?tags=story&hitsPerPage={hitsPerPage}&page={page}&numericFilters=created_at_i>{startTimestamp}
+GET /topstories.json
+GET /beststories.json
 ```
 
-Returns stories created within the last 24 hours. The Algolia index uses `customRanking: ['desc(points)', 'desc(num_comments)']`, so results are ranked by points and comment count by default.
+The frontend lets the user choose Top or Best. The server fetches IDs from the selected feed, loads item details in feed order, filters out deleted/dead/non-story items, applies the selected age cutoff locally, and stops after the requested count.
 
-Pagination uses 50 hits per page. Multiple requests are made when the requested count exceeds 50.
+The age filter is a local cutoff over the current HN feed. It is not an all-time historical search.
 
 ### API response fields
 
-Story fields used:
+Each feed item is loaded from:
+
+```
+GET /item/{storyId}.json
+```
+
+Story fields used from Firebase items:
 
 | Field | Type | Description |
 |---|---|---|
-| `objectID` | string | Story ID |
+| `id` | integer | Story ID |
 | `title` | string | Story title |
-| `url` | string | Article URL (null for Ask HN, Show HN text posts) |
-| `points` | integer | Upvote count |
-| `num_comments` | integer | Total comment count |
-| `author` | string | Submitter username |
-| `created_at` | string | ISO 8601 creation timestamp |
+| `url` | string | Article URL (missing for Ask HN, Show HN text posts) |
+| `score` | integer | Upvote count |
+| `descendants` | integer | Total comment count |
+| `by` | string | Submitter username |
+| `time` | integer | Unix creation timestamp |
+| `kids` | array | Top-level comment IDs |
+| `type` | string | Item type; only `story` is used |
 
-When `url` is null (Ask HN, Show HN), the story URL falls back to the HN discussion page.
+When `url` is missing, the story URL falls back to the HN discussion page.
 
 ### Comment trees
 
-When generating an EPUB for selected stories, the server fetches the full item (including nested comment tree) from the Algolia items endpoint:
-
-```
-GET /items/{storyId}
-```
-
-The response `children` array contains recursively nested comment objects. Each comment has:
+Firebase items expose comment trees as ID references through `kids`. When generating or previewing an archive, the server walks those IDs recursively and fetches each comment with `GET /item/{commentId}.json`.
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | integer | Comment ID |
-| `author` | string or null | Username (null for deleted comments) |
-| `text` | string or null | Comment HTML (null for deleted comments) |
-| `created_at` | string | ISO 8601 creation timestamp |
+| `by` | string | Username |
+| `text` | string | Comment HTML |
+| `time` | integer | Unix creation timestamp |
 | `type` | string | Item type ("comment", "pollopt", etc.) |
-| `children` | array | Nested replies |
+| `kids` | array | Reply comment IDs |
+| `deleted` | boolean | Deleted item marker |
+| `dead` | boolean | Dead item marker |
 
-The comment tree is flattened into a depth-annotated list via pre-order traversal. Deleted comments (null author or text) and non-comment types are skipped, but their child replies are preserved.
+The comment tree is flattened into a depth-annotated list via pre-order traversal. Deleted, dead, missing, and non-comment items are skipped.
 
 ## Article extraction
 

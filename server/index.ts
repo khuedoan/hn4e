@@ -1,30 +1,32 @@
 import { Hono } from "hono";
+import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
-import { fetchPopularStories } from "./hn.ts";
-import { flattenComments, filterComments } from "./comments.ts";
+import { fetchStories, fetchStoriesByIds, type FeedType } from "./hn.ts";
 import { extractArticle, extractArticles } from "./extract.ts";
 import { generateEpub, buildChapters } from "./epub.ts";
-import { Cache, ONE_HOUR } from "./cache.ts";
-import type { Comment, CommentFilterOptions, Story, GenerationProgress } from "./types.ts";
+import type { CommentFilterOptions, GenerationProgress } from "./types.ts";
 
 const app = new Hono();
 
 app.use("/*", cors());
 
 // Return the story list for user selection before generating
+const ALLOWED_FEEDS: FeedType[] = ["top", "best"];
 const ALLOWED_COUNTS = [50, 100, 150, 200];
-// 0 means "all time" (no time filter)
-const ALLOWED_TIME_RANGES = [0, 86400, 172800, 604800, 2592000, 31536000];
+const ALLOWED_TIME_RANGES = [86400, 172800, 604800, 2592000, 31536000];
 
 app.get("/api/stories", async (c) => {
+  const rawFeed = c.req.query("feed") ?? "top";
+  const feed = ALLOWED_FEEDS.includes(rawFeed as FeedType) ? rawFeed as FeedType : "top";
+
   const rawCount = parseInt(c.req.query("count") ?? "100");
   const count = ALLOWED_COUNTS.includes(rawCount) ? rawCount : 100;
 
   const rawTimeRange = parseInt(c.req.query("timeRange") ?? "86400");
   const timeRange = ALLOWED_TIME_RANGES.includes(rawTimeRange) ? rawTimeRange : 86400;
 
-  const stories = await fetchPopularStories(count, timeRange);
+  const stories = await fetchStories(feed, count, timeRange);
   return c.json(stories);
 });
 
@@ -48,11 +50,6 @@ app.get("/api/generate", async (c) => {
     maxTopLevelComments: parseInt(c.req.query("maxTopLevelComments") ?? "-1") || -1,
   };
 
-  // Fetch the full story data and comment trees for the selected IDs
-  const storiesWithComments = await fetchStoriesByIds(ids);
-  const stories = storiesWithComments.map((s) => s.story);
-  const commentsByStoryId = new Map(storiesWithComments.map((s) => [s.story.id, s.comments]));
-
   return streamSSE(c, async (stream) => {
     function sendProgress(progress: GenerationProgress) {
       return stream.writeSSE({
@@ -62,6 +59,21 @@ app.get("/api/generate", async (c) => {
     }
 
     try {
+      await sendProgress({
+        phase: "extracting",
+        current: 0,
+        total: ids.length,
+        message: "Loading selected stories...",
+      });
+
+      const storiesWithComments = await fetchStoriesByIds(ids, includeComments, commentFilter);
+      if (storiesWithComments.length === 0) {
+        throw new Error("No selected stories could be loaded.");
+      }
+
+      const stories = storiesWithComments.map((s) => s.story);
+      const commentsByStoryId = new Map(storiesWithComments.map((s) => [s.story.id, s.comments]));
+
       await sendProgress({
         phase: "extracting",
         current: 0,
@@ -78,14 +90,8 @@ app.get("/api/generate", async (c) => {
         });
       });
 
-      // Attach comments to each extracted article
       for (const article of articles) {
-        if (!includeComments) {
-          article.comments = [];
-        } else {
-          const raw = commentsByStoryId.get(article.story.id) ?? [];
-          article.comments = filterComments(raw, commentFilter);
-        }
+        article.comments = commentsByStoryId.get(article.story.id) ?? [];
       }
 
       await sendProgress({
@@ -121,59 +127,6 @@ app.get("/api/generate", async (c) => {
   });
 });
 
-interface StoryWithComments {
-  story: Story;
-  comments: Comment[];
-}
-
-export const storyCache = new Cache<StoryWithComments>(ONE_HOUR, 300);
-
-// Fetch stories and their comment trees by ID from the Algolia items API.
-// The items endpoint returns the full nested comment tree, so we extract
-// both story metadata and comments from a single request per story.
-async function fetchStoriesByIds(ids: string[]): Promise<StoryWithComments[]> {
-  const ALGOLIA_API = "https://hn.algolia.com/api/v1";
-
-  const results: StoryWithComments[] = [];
-  const uncachedIds: string[] = [];
-
-  for (const id of ids) {
-    const cached = storyCache.get(id);
-    if (cached) {
-      results.push(cached);
-    } else {
-      uncachedIds.push(id);
-    }
-  }
-
-  const fetches = uncachedIds.map(async (id): Promise<StoryWithComments | null> => {
-    const response = await fetch(`${ALGOLIA_API}/items/${id}`);
-    if (!response.ok) return null;
-
-    const item = await response.json();
-    const story: Story = {
-      id: String(item.id),
-      title: item.title ?? "",
-      url: item.url ?? `https://news.ycombinator.com/item?id=${item.id}`,
-      author: item.author ?? "",
-      points: item.points ?? 0,
-      commentCount: item.children?.length ?? 0,
-      createdAt: item.created_at ?? "",
-    };
-    const comments = flattenComments(item.children ?? []);
-    const entry = { story, comments };
-    storyCache.set(id, entry);
-    return entry;
-  });
-
-  const fetched = await Promise.all(fetches);
-  for (const r of fetched) {
-    if (r) results.push(r);
-  }
-
-  return results;
-}
-
 // SSE endpoint that streams article HTML previews as they are extracted.
 // Returns each article's rendered HTML content incrementally, styled to match
 // the EPUB output, without generating an actual EPUB file.
@@ -192,10 +145,6 @@ app.get("/api/preview", async (c) => {
     maxTopLevelComments: parseInt(c.req.query("maxTopLevelComments") ?? "-1") || -1,
   };
 
-  const storiesWithComments = await fetchStoriesByIds(ids);
-  const stories = storiesWithComments.map((s) => s.story);
-  const commentsByStoryId = new Map(storiesWithComments.map((s) => [s.story.id, s.comments]));
-
   return streamSSE(c, async (stream) => {
     function sendProgress(progress: GenerationProgress) {
       return stream.writeSSE({
@@ -208,6 +157,21 @@ app.get("/api/preview", async (c) => {
       await sendProgress({
         phase: "extracting",
         current: 0,
+        total: ids.length,
+        message: "Loading selected stories...",
+      });
+
+      const storiesWithComments = await fetchStoriesByIds(ids, includeComments, commentFilter);
+      if (storiesWithComments.length === 0) {
+        throw new Error("No selected stories could be loaded.");
+      }
+
+      const stories = storiesWithComments.map((s) => s.story);
+      const commentsByStoryId = new Map(storiesWithComments.map((s) => [s.story.id, s.comments]));
+
+      await sendProgress({
+        phase: "extracting",
+        current: 0,
         total: stories.length,
         message: "Extracting article content...",
       });
@@ -215,12 +179,7 @@ app.get("/api/preview", async (c) => {
       for (let i = 0; i < stories.length; i++) {
         const article = await extractArticle(stories[i]);
 
-        if (!includeComments) {
-          article.comments = [];
-        } else {
-          const raw = commentsByStoryId.get(article.story.id) ?? [];
-          article.comments = filterComments(raw, commentFilter);
-        }
+        article.comments = commentsByStoryId.get(article.story.id) ?? [];
 
         const chapters = await buildChapters(article, i, { includeQrCode });
 
@@ -279,6 +238,10 @@ app.get("/api/download/:token", (c) => {
     },
   });
 });
+
+app.use("/assets/*", serveStatic({ root: "./dist" }));
+app.get("/favicon.svg", serveStatic({ path: "./dist/favicon.svg" }));
+app.get("*", serveStatic({ path: "./dist/index.html" }));
 
 const port = parseInt(process.env.PORT ?? "3001");
 console.log(`Server running on http://localhost:${port}`);

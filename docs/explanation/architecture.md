@@ -12,13 +12,15 @@ The system has two components:
 
 ## Request lifecycle
 
-1. The frontend opens an SSE connection to `GET /api/generate`.
-2. The server fetches popular stories from the HN Algolia API.
-3. For each story, the server fetches the article URL and extracts content using Readability.
-4. The server generates an EPUB file with one chapter per story.
-5. The EPUB is stored in memory with a unique token. The token is sent to the client as the final SSE event.
-6. The frontend uses the token to download the file via `GET /api/download/:token`.
-7. The in-memory buffer is deleted after download or after 5 minutes, whichever comes first.
+1. The frontend loads story choices from `GET /api/stories`.
+2. The server fetches IDs from the selected HN Firebase feed (`topstories` or `beststories`), loads item details, and applies the selected age/count filters.
+3. The user selects stories and opens an SSE connection to `GET /api/generate`.
+4. The server reloads selected story metadata and comment trees from the HN Firebase item API.
+5. For each story, the server fetches the article URL and extracts content using Readability.
+6. The server generates an EPUB file with story chapters and nested comments chapters.
+7. The EPUB is stored in memory with a unique token. The token is sent to the client as the final SSE event.
+8. The frontend uses the token to download the file via `GET /api/download/:token`.
+9. The in-memory buffer is deleted after 5 minutes.
 
 ## Why this stack
 
@@ -32,8 +34,8 @@ The system has two components:
 
 The server uses in-memory caches with a 1-hour TTL and a max entry cap to avoid redundant API calls and article extractions. Each cache evicts the oldest entry when full.
 
-- **Feed cache** (max 20 entries): caches the story list by count and time range, so repeated page loads with the same filters skip the Algolia search API.
-- **Story+comments cache** (max 300 entries): caches individual story metadata and comment trees by story ID. When generating an EPUB, only uncached stories are fetched from the Algolia items API.
+- **Feed cache** (max 20 entries): caches the story list by feed, count, and time range, so repeated page loads with the same filters skip the HN Firebase feed and item API calls.
+- **Story+comments cache** (max 300 entries): caches individual story metadata and comment trees by story ID and comment filter settings. When generating an EPUB, only uncached stories are fetched from the HN Firebase item API.
 - **Article content cache** (max 300 entries): caches extracted article HTML by URL. This gives the biggest performance gain since extraction involves fetching external URLs and running Readability/jsdom.
 
 Caches are not persistent. They are lost on server restart, which is acceptable for a personal-use tool.

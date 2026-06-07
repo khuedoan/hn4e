@@ -1,20 +1,31 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from "bun:test";
-import { fetchPopularStories, feedCache } from "./hn.ts";
+import { fetchStories, fetchStoriesByIds, feedCache, storyCache } from "./hn.ts";
 
-function makeAlgoliaHit(i: number) {
+const now = Math.floor(Date.now() / 1000);
+
+function makeStoryItem(id: number, overrides: Record<string, unknown> = {}) {
   return {
-    objectID: String(i),
-    title: `Story ${i}`,
-    url: `https://example.com/${i}` as string | null,
-    author: `user${i}`,
-    points: 100 - i,
-    num_comments: 10,
-    created_at: new Date().toISOString(),
+    id,
+    type: "story",
+    title: `Story ${id}`,
+    url: `https://example.com/${id}`,
+    by: `user${id}`,
+    score: 100 - id,
+    descendants: 10,
+    time: now,
+    ...overrides,
   };
 }
 
-function makeAlgoliaResponse(hits: ReturnType<typeof makeAlgoliaHit>[]) {
-  return { hits, nbHits: hits.length, nbPages: 1 };
+function makeCommentItem(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    type: "comment",
+    by: `commenter${id}`,
+    text: `Comment ${id}`,
+    time: now,
+    ...overrides,
+  };
 }
 
 const originalFetch = globalThis.fetch;
@@ -24,75 +35,138 @@ beforeEach(() => {
   mockFetch = mock();
   globalThis.fetch = mockFetch as unknown as typeof fetch;
   feedCache.clear();
+  storyCache.clear();
 });
 
 afterAll(() => {
   globalThis.fetch = originalFetch;
 });
 
-describe("fetchPopularStories", () => {
-  test("returns stories mapped from Algolia hits", async () => {
-    const hits = [makeAlgoliaHit(1), makeAlgoliaHit(2)];
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(makeAlgoliaResponse(hits)), { status: 200 }),
-    );
+describe("fetchStories", () => {
+  test("returns top stories from the official HN API", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify([1, 2]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(1)), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(2)), { status: 200 }));
 
-    const stories = await fetchPopularStories(2);
+    const stories = await fetchStories("top", 2);
 
     expect(stories).toHaveLength(2);
-    expect(stories[0].id).toBe("1");
-    expect(stories[0].title).toBe("Story 1");
-    expect(stories[0].url).toBe("https://example.com/1");
-    expect(stories[0].author).toBe("user1");
-    expect(stories[0].points).toBe(99);
-    expect(stories[0].commentCount).toBe(10);
+    expect(stories[0]).toMatchObject({
+      id: "1",
+      title: "Story 1",
+      url: "https://example.com/1",
+      author: "user1",
+      points: 99,
+      commentCount: 10,
+    });
+    expect(mockFetch.mock.calls[0][0]).toBe("https://hacker-news.firebaseio.com/v0/topstories.json");
   });
 
-  test("falls back to HN URL when story has no URL", async () => {
-    const hit = makeAlgoliaHit(42);
-    hit.url = null;
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(makeAlgoliaResponse([hit])), { status: 200 }),
-    );
+  test("can fetch best stories", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify([3]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(3)), { status: 200 }));
 
-    const stories = await fetchPopularStories(1);
+    const stories = await fetchStories("best", 1);
+
+    expect(stories.map((story) => story.id)).toEqual(["3"]);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://hacker-news.firebaseio.com/v0/beststories.json");
+  });
+
+  test("filters old items by time range while preserving API order", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify([1, 2, 3]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(1, { time: now - 100_000 })), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(2, { score: 1 })), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(3, { score: 999 })), { status: 200 }));
+
+    const stories = await fetchStories("top", 2, 86400);
+
+    expect(stories.map((story) => story.id)).toEqual(["2", "3"]);
+    expect(stories.map((story) => story.points)).toEqual([1, 999]);
+  });
+
+  test("falls back to HN discussion URL when story has no URL", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify([42]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(42, { url: undefined })), { status: 200 }));
+
+    const stories = await fetchStories("top", 1);
 
     expect(stories[0].url).toBe("https://news.ycombinator.com/item?id=42");
   });
 
-  test("paginates when requesting more than 50 stories", async () => {
-    const page1 = Array.from({ length: 50 }, (_, i) => makeAlgoliaHit(i));
-    const page2 = Array.from({ length: 10 }, (_, i) => makeAlgoliaHit(50 + i));
-
+  test("caches feed results by feed, count, and time range", async () => {
     mockFetch
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(makeAlgoliaResponse(page1)), { status: 200 }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(makeAlgoliaResponse(page2)), { status: 200 }),
-      );
+      .mockResolvedValueOnce(new Response(JSON.stringify([1]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(1)), { status: 200 }));
 
-    const stories = await fetchPopularStories(60);
+    await fetchStories("top", 1, 86400);
+    await fetchStories("top", 1, 86400);
 
-    expect(stories).toHaveLength(60);
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+});
 
-  test("throws on API error", () => {
-    mockFetch.mockResolvedValueOnce(new Response("", { status: 500, statusText: "Internal Server Error" }));
+describe("fetchStoriesByIds", () => {
+  const unlimited = {
+    maxCommentDepth: -1,
+    maxCommentsPerStory: -1,
+    maxTopLevelComments: -1,
+  };
 
-    expect(fetchPopularStories(1)).rejects.toThrow("Algolia API error: 500");
-  });
-
-  test("stops early if API returns fewer hits than requested", async () => {
-    const hits = [makeAlgoliaHit(1)];
+  test("loads selected stories without comments", async () => {
     mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(makeAlgoliaResponse(hits)), { status: 200 }),
+      new Response(JSON.stringify(makeStoryItem(7, { kids: [70] })), { status: 200 }),
     );
 
-    const stories = await fetchPopularStories(10);
+    const entries = await fetchStoriesByIds(["7"], false, unlimited);
 
-    expect(stories).toHaveLength(1);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].story.id).toBe("7");
+    expect(entries[0].comments).toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("loads comments recursively with depth annotations", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(1, { kids: [10] })), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeCommentItem(10, { kids: [11] })), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeCommentItem(11)), { status: 200 }));
+
+    const entries = await fetchStoriesByIds(["1"], true, unlimited);
+
+    expect(entries[0].comments).toEqual([
+      { id: 10, author: "commenter10", text: "Comment 10", createdAt: new Date(now * 1000).toISOString(), depth: 0 },
+      { id: 11, author: "commenter11", text: "Comment 11", createdAt: new Date(now * 1000).toISOString(), depth: 1 },
+    ]);
+  });
+
+  test("applies comment limits while fetching", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeStoryItem(1, { kids: [10, 20] })), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeCommentItem(10, { kids: [11] })), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeCommentItem(11)), { status: 200 }));
+
+    const entries = await fetchStoriesByIds(["1"], true, {
+      maxCommentDepth: 1,
+      maxCommentsPerStory: 2,
+      maxTopLevelComments: 1,
+    });
+
+    expect(entries[0].comments.map((comment) => comment.id)).toEqual([10, 11]);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  test("skips invalid and non-story IDs", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify(makeStoryItem(2, { type: "job" })), { status: 200 }),
+    );
+
+    const entries = await fetchStoriesByIds(["nope", "2"], false, unlimited);
+
+    expect(entries).toEqual([]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

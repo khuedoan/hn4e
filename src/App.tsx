@@ -17,11 +17,12 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Eye, Github, List, Loader2, MessageSquare, RefreshCw, RemoveFormatting, Settings, ThumbsUp } from "lucide-react";
 
 const SETTINGS_KEY = "hn4e-settings";
 
-type ExportFormat = "epub";
+type FeedType = "top" | "best";
 
 interface Settings {
   includeComments: boolean;
@@ -29,7 +30,6 @@ interface Settings {
   maxCommentDepth: number; // 1-10, or 11 for unlimited
   maxTopLevelComments: number; // 1-20, or 21 for unlimited
   maxCommentsPerStory: number; // 1-500, or 501 for unlimited
-  exportFormat: ExportFormat;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -38,7 +38,6 @@ const DEFAULT_SETTINGS: Settings = {
   maxCommentDepth: 5,
   maxTopLevelComments: 11, // unlimited since top-level filtering is aggressive
   maxCommentsPerStory: 200,
-  exportFormat: "epub",
 };
 
 // Slider configs: the max slider position is one past the real max and means "Unlimited"
@@ -59,7 +58,16 @@ function sliderToParam(value: number, unlimited: number): string {
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Settings>;
+      return {
+        includeComments: parsed.includeComments ?? DEFAULT_SETTINGS.includeComments,
+        includeQrCode: parsed.includeQrCode ?? DEFAULT_SETTINGS.includeQrCode,
+        maxCommentDepth: parsed.maxCommentDepth ?? DEFAULT_SETTINGS.maxCommentDepth,
+        maxTopLevelComments: parsed.maxTopLevelComments ?? DEFAULT_SETTINGS.maxTopLevelComments,
+        maxCommentsPerStory: parsed.maxCommentsPerStory ?? DEFAULT_SETTINGS.maxCommentsPerStory,
+      };
+    }
   } catch {
     // Ignore corrupted data
   }
@@ -83,7 +91,6 @@ const TIME_RANGE_OPTIONS = [
   { value: "604800", label: "1 week" },
   { value: "2592000", label: "1 month" },
   { value: "31536000", label: "1 year" },
-  { value: "0", label: "all time" },
 ] as const;
 
 interface Story {
@@ -97,7 +104,7 @@ interface Story {
 }
 
 interface GenerationProgress {
-  phase: "extracting" | "comments" | "generating" | "done" | "error";
+  phase: "extracting" | "generating" | "done" | "error";
   current: number;
   total: number;
   message: string;
@@ -109,6 +116,7 @@ function App() {
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const [feed, setFeed] = useState<FeedType>("top");
   const [count, setCount] = useState("100");
   const [timeRange, setTimeRange] = useState("86400");
 
@@ -134,7 +142,8 @@ function App() {
     setProgress(null);
 
     try {
-      const response = await fetch(`/api/stories?count=${count}&timeRange=${timeRange}`);
+      const params = new URLSearchParams({ feed, count, timeRange });
+      const response = await fetch(`/api/stories?${params}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch stories: ${response.statusText}`);
       }
@@ -147,7 +156,7 @@ function App() {
     } finally {
       setIsFetching(false);
     }
-  }, [count, timeRange]);
+  }, [feed, count, timeRange]);
 
   const toggleStory = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -322,7 +331,12 @@ function App() {
       </div>
 
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm text-muted-foreground">
-        <span>Top</span>
+        <Tabs value={feed} onValueChange={(value) => setFeed(value as FeedType)}>
+          <TabsList>
+            <TabsTrigger value="top">Top</TabsTrigger>
+            <TabsTrigger value="best">Best</TabsTrigger>
+          </TabsList>
+        </Tabs>
         <Select value={count} onValueChange={setCount}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -618,26 +632,6 @@ function App() {
                     </div>
                   )}
                 </div>
-
-                {/* Export section */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Export format</Label>
-                  <Select
-                    value={settings.exportFormat}
-                    onValueChange={(value: ExportFormat) => {
-                      const next = { ...settings, exportFormat: value };
-                      setSettings(next);
-                      saveSettings(next);
-                    }}
-                  >
-                    <SelectTrigger size="sm" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="epub">EPUB</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </PopoverContent>
           </Popover>
@@ -657,12 +651,12 @@ function App() {
           </Button>
           <Button
             variant="outline"
-            size="icon"
             onClick={togglePreview}
             disabled={selectedIds.size === 0 || isGenerating}
             title={isPreviewing ? "Close preview" : "Preview"}
           >
             <Eye className={`size-4 ${isPreviewing ? "text-primary" : ""}`} />
+            Preview
           </Button>
         </div>
 

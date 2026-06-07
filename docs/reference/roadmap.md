@@ -2,25 +2,25 @@
 
 ## v0.1.0
 
-Basic end-to-end pipeline that fetches popular HN stories, extracts article
+Basic end-to-end pipeline that fetches HN stories, extracts article
 content and comments, and produces a downloadable EPUB file.
 
 - [x] feat(ui): basic layout
-- [x] feat: fetch popular stories from the HN Algolia API
+- [x] feat: fetch stories from the official HN Firebase API
 - [x] feat: extract article content
-- [x] feat: generate EPUB with one chapter per story
+- [x] feat: generate EPUB with story and comments chapters
 - [x] feat: filter articles to export
 - [x] feat: fetch full comment trees as subchapter
-- [x] feat: render nested comments with indentation after article
+- [x] feat: render nested comments with indentation
 
 ## v0.2.0
 
 Add user-configurable options.
 
-- [x] feat: configurable time range for popular source
+- [x] feat: configurable HN feed and age range
 - [x] feat: configurable max story count
 - [x] feat(ui): better progress display
-- [x] feat: settings for comments and output format
+- [x] feat: settings for comments and QR codes
 
 ## v0.3.0
 
